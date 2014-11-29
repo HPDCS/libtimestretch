@@ -1,0 +1,57 @@
+timestretch Installation Instructions
+*************************************
+
+
+Prerequisites
+=============
+
+This software contains a Linux kernel module and a shared library.
+Therefore this should be a reasonable list of prerequisites:
+
+- Linux Kernel, version >= 2.6.26
+- Linux Kernel headers
+- gcc C compiler
+- System map and configuration for the current kernel version installed
+  in /boot/
+- udev to set correct permissions on the created device file, looking
+  for new rules in /etc/udev/rules.d/
+
+  
+Basic Installation
+==================
+
+   To install the timestretch kernel module and the static library the
+shell commands `./configure; make; make install' should do all the jobs.
+When running make install, this should be done with administrator privileges
+to install the kernel module in the extra/ modules' tree.
+`modprobe -a` is run as well at the end of make install, so the module
+is made visible to the system.
+
+Please note that during the execution of ./configure, the kernel map is
+inspected looking for symbols. Therefore, if the kernel is changed, ./configure
+should be run again. Running only make could generate a module which is
+incorrect.
+   
+   
+Basic Usage
+===========
+
+   Once the module and the library are installed, the module can be started
+by running `modprobe timestretch` as a super user. Message logs in dmesg
+should confirm the successful installation. The installation is confirmed
+as well by the creation of the special device file /dev/timestretch which
+allows for interaction with the module.
+
+   The library comes with the header <timestretch.h> which should be included
+to use the library. Any software compiled against libtimestretch will then
+be able to use the following API:
+- ts_open(void): opens the /dev/timestretch special file. This process is then
+  registered as the one whose threads will be able to use the stretching facilities.
+- register_ts_thread(void): this allows the kernel module to keep track of a (new)
+  thread running within the process, which will eventually ask for a time stretch.
+- deregister_ts_thread(void): the thread is no longer interested in time stretching
+  facilities, and the module can uninstall any required data structure for it.
+- ts_start(unsigned int millisec): the current threads should not be descheduled
+  for time quantum expiration for at most millisec milliseconds
+int ts_end(void): if a timer interrupt arrives, the current thread can be descheduled.
+

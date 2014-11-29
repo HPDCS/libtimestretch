@@ -1,0 +1,14 @@
+This is the timestretch library and kernel module, to stretch the time quantum
+assigned to userspace processes on modern multicore processors.
+
+The code has been developed by:
+- Francesco Quaglia <quaglia@dis.uniroma1.it>
+- Alessandro Pellegrini <pellegrini@dis.uniroma1.it>
+
+and is Copyright (C) 2014 HPDCS Group, http://www.dis.uniroma1.it/~hpdcs
+
+For installation and usage information, please refer to INSTALL.
+
+In the folder test/ there is a working example of what can be done with
+libtimestretch. The file example.c has a long comment at the top, showing
+some features of the library
