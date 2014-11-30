@@ -36,8 +36,8 @@
 
 #define TS_ALREADY_OPEN -3
 
-#define TS_DEREGISTER_OK     4
-#define TS_DEREGISTER_ERROR -4
+#define TS_THREAD_DEREGISTER_OK     4
+#define TS_THREAD_DEREGISTER_ERROR -4
 
 #define TS_START_OK     5
 #define TS_START_ERROR -5
