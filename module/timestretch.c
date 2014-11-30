@@ -631,6 +631,29 @@ static void *next_function(void) {
 		}
 	}
 	
-	return next;
+	// if ptr == NULL, then scheduler_hook is last function in the kernel module...
+	if(next == NULL) {
+                printk(KERN_DEBUG "%s: scheduler_hook is likely the last function of the module. ", KBUILD_MODNAME);
+		printk(KERN_CONT "Scanning from the end of the page\n");
+
+                next = (unsigned char *)scheduler_hook + 4096;
+                next = (unsigned char*)((ulong) next & 0xfffffffffffff000);
+                next--;
+
+                while((long)next >= (long)scheduler_hook) {
+                        if(*next == 0xc3) {
+                                break;
+                        }
+			next--;
+                }
+
+		// We didn't have luck...
+		if((long)next == (long)scheduler_hook)
+			next = NULL;
+		else
+			next += 5; // To be compliant with the patching algorithm when a next function is found
+        }
+
+	return (void *)next;
 }
 
