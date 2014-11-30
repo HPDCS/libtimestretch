@@ -43,7 +43,12 @@
 #include <asm/page.h>
 #include <asm/cacheflush.h>
 #include <asm/apic.h>
-#include <asm/system.h> // This gives access to read_cr0() and write_cr0()
+// This gives access to read_cr0() and write_cr0()
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3,3,0)
+    #include <asm/switch_to.h>
+#else
+    #include <asm/system.h>
+#endif
 
 #include "timestretch.h"
 
@@ -52,6 +57,7 @@
 #error Unsupported Kernel Version
 #endif
 
+#define DEBUG if(0)
 
 static unsigned int stretch_flag[MAX_CPUs] = {[0 ... MAX_CPUs-1] 0}; 
 

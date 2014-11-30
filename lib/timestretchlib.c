@@ -59,6 +59,7 @@ int ts_open(void) {
 
   ret = ioctl(fd, IOCTL_SETUP_BUFFER,buff);
   if (ret == -1) {
+	close(fd);
 	return TS_OPEN_ERROR;
   }
 
@@ -75,7 +76,7 @@ int register_ts_thread(void) {
   	}
 
 	ret = ioctl(fd, IOCTL_REGISTER_THREAD,&buff);
-  	if (fd == -1) {
+  	if (ret == -1) {
 		return TS_REGISTER_ERROR;
   	}
 	
@@ -90,17 +91,17 @@ int register_ts_thread(void) {
 int deregister_ts_thread(void) {
 	int ret;
 	if (lookup.me != getpid()){
-		return TS_THREAD_DEREGISTER_ERROR;
+		return TS_DEREGISTER_ERROR;
 	}
 	
 	ret = ioctl(fd, IOCTL_DEREGISTER_THREAD, (unsigned int)lookup.ts_id);
 	if (ret == -1){
-		return TS_THREAD_DEREGISTER_ERROR;
+		return TS_DEREGISTER_ERROR;
 	}
 
 	lookup.me = -1;
 	lookup.ts_id = -1;
-	return TS_THREAD_DEREGISTER_OK;
+	return TS_DEREGISTER_OK;
 
 
 }

@@ -33,6 +33,8 @@
 #define UNLIKELY_FLAG 0xf0f0f0f0
 #define RESET_FLAG    0x00000000
 
+#define MAX_STRETCH 3000 //this is expressed in milliseconds
+
 #define DELAY 1000
 #define ENABLE if(1)
 #define MAX_CPUs 32
