@@ -277,6 +277,15 @@ ENABLE 		my__setup_APIC_LVTT(time_cycles,0,1);
 	return ret;
 }
 
+static void print_bytes(char *str, unsigned char *ptr, size_t s) {
+	size_t i;
+
+	printk(KERN_DEBUG "%s: %s: ", KBUILD_MODNAME, str);
+	for(i = 0; i < s; i++)
+		printk(KERN_CONT "%02x ", ptr[i]);
+	printk(KERN_CONT "\n");
+}
+
 
 static void scheduler_hook(void) {
 
@@ -349,17 +358,89 @@ ENABLE 		my__setup_APIC_LVTT(time_cycles, 0, 1);
 
 static int check_patch_compatibility(void) {
 	unsigned char *ptr;
-	int pos = 0;
+
 	int matched = 0;
 	int i;
-	unsigned char magic[10] = {0xc3, 0x41, 0x58, 0x59, 0x5a, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f};
+	unsigned char magic[9] = {0x41, 0x58, 0x59, 0x5a, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f};
+	int j = 0;
 
+
+	print_bytes("I will check the compatibility on these bytes", finish_task_switch, finish_task_switch_next - finish_task_switch);
+
+
+	printk(KERN_DEBUG "Scanning bytes backwards for magic matching: ");
+	ptr = (unsigned char *)finish_task_switch_next - 1;
+	while((long)ptr >= (long)finish_task_switch) {
+
+		if(*ptr != 0xc3) {
+			printk("#");
+			ptr--;
+			continue;
+		}
+
+		// Here we should have found th first (from the end of the function) ret
+		// Check whether the pattern is one of:
+		// pop pop ret
+		// pop pop pop ret
+		// pop pop pop pop ret
+		for(j = -1; j >= -4; j--) {
+			matched = 0;
+			for(i = 0; i < 9; i++) {
+	                        if(ptr[j] == magic[i]) {
+					printk(KERN_CONT "%02x ", ptr[j]);
+	                                matched = 1;
+	                                break;
+	                        }
+        	        }
+			if(!matched)
+				break;
+		}
+
+		if(matched) {
+			// If the pattern is found, ptr must point to the first byte *after* the ret
+			ptr++;
+			break;
+		}
+
+		// We didn't find the pattern. Go on scanning backwards
+		ptr--;
+		
+	}
+	printk(KERN_CONT "\n");
+
+	if(ptr == finish_task_switch) {
+		printk(KERN_INFO "%s: no valid ret instruction found in finish_task_switch\n", KBUILD_MODNAME);
+		goto failed;
+	}
+
+	// We've been lucky!
+	finish_task_switch_next = ptr;
+	
+	printk("supposed target address is %p - compile time one is %p - double check\n",ptr,finish_task_switch_next);
+
+	printk(KERN_CONT "%02x %02x %02x %02x %02x looks correct.\n",
+                        ((unsigned char *)finish_task_switch_next)[-5],
+                        ((unsigned char *)finish_task_switch_next)[-4],
+                        ((unsigned char *)finish_task_switch_next)[-3],
+                        ((unsigned char *)finish_task_switch_next)[-2],
+                        ((unsigned char *)finish_task_switch_next)[-1]);
+
+/*	j=0;
+	while((long)(correct_pattern_position + j) < (long)finish_task_switch_next){
+		printk(KERN_CONT "%02x\n",
+                        ((unsigned char *)correct_pattern_position)[j]);
+	
+		j++;
+	}
+
+	finish_task_switch_next = correct_pattern_position + 1;
 
 	ptr = (unsigned char *)finish_task_switch_next - 1;
+	
 	for(pos = 0; pos < 5; pos++) {
 		matched = 0;
 		
-		for(i = 0; i < 10; i++) {
+		for(i = 0; i < 9; i++) {
 			if(*ptr == magic[i]) {
 				matched = 1;
 				break;
@@ -371,12 +452,21 @@ static int check_patch_compatibility(void) {
 
 		ptr--;
 	}
-
+*/
 	return 0;
 
     failed: 
 
 	printk(KERN_NOTICE "%s: magic check on bytes ", KBUILD_MODNAME);
+
+/*	printk(KERN_CONT "%02x %02x %02x %02x %02x failed.\n",
+                        ((unsigned char *)correct_pattern_position)[0],
+                        ((unsigned char *)correct_pattern_position)[1],
+                        ((unsigned char *)correct_pattern_position)[2],
+                        ((unsigned char *)correct_pattern_position)[3],
+                        ((unsigned char *)correct_pattern_position)[4]);
+
+*/
 	printk(KERN_CONT "%02x %02x %02x %02x %02x failed.\n",
                         ((unsigned char *)finish_task_switch_next)[-5],
                         ((unsigned char *)finish_task_switch_next)[-4],
@@ -388,14 +478,6 @@ static int check_patch_compatibility(void) {
 }
 
 
-static void print_bytes(char *str, unsigned char *ptr, size_t s) {
-	size_t i;
-
-	printk(KERN_DEBUG "%s: %s: ", KBUILD_MODNAME, str);
-	for(i = 0; i < s; i++)
-		printk(KERN_CONT "%02x ", ptr[i]);
-	printk(KERN_CONT "\n");
-}
 
 
 static int scheduler_patch(void) {
@@ -410,8 +492,10 @@ static int scheduler_patch(void) {
 	unsigned long cr0;
 	unsigned char bytes_to_redirect[5];
 
-	printk(KERN_DEBUG "%s: patching the scheduler...\n", KBUILD_MODNAME);
+	printk(KERN_DEBUG "%s: start patching the scheduler...\n", KBUILD_MODNAME);
 
+	// check_patch_compatibility overrides the content of finish_task_switch_next
+	// as it is adjusted to the first byte after the ret instruction of finish_task_switch
 	ret = check_patch_compatibility();
 	if(ret)
 		goto out;
@@ -431,8 +515,6 @@ static int scheduler_patch(void) {
 	}
 
 	// Assemble the actual jump. Thank to little endianess, we must manually swap bytes
-//	ptr = (unsigned char *)finish_task_switch_next;
-//	memcpy(bytes_to_redirect, ptr[-5], 5);
 	pos = 0;
 	bytes_to_redirect[pos++] = 0xe9;
 	bytes_to_redirect[pos++] = (unsigned char)(displacement & 0xff);
@@ -448,7 +530,6 @@ static int scheduler_patch(void) {
 	// there is enough space or not.
 	ptr = (unsigned char *)next_function();
 	if(ptr == NULL) {
-		printk(KERN_NOTICE "%s: unable to find a suitable function next to scheduler_hook\n", KBUILD_MODNAME);
 		ret = -1;
 		goto out;
 	}
@@ -603,7 +684,7 @@ ENABLE 	my__setup_APIC_LVTT(time_cycles, 0, 1);
 
 
 static void *next_function(void) {
-	void *next = NULL;
+	unsigned char *next = NULL;
 	// All functions in this module, excepting scheduler_hook.
 	// Read the comment above function prototypes for an explanation
 	void *functions[] = {	next_function,
