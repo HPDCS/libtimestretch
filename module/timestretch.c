@@ -123,7 +123,7 @@ struct file_operations fops = {
 };
 
 
-
+int enabled_registering = 0;
 
 
 
@@ -140,12 +140,26 @@ int time_stretch_open(struct inode *inode, struct file *filp) {
                 return -EBUSY;
         }
 
+	enabled_registering = 1;
 	return 0;
 }
 
 
 int time_stretch_release(struct inode *inode, struct file *filp) {
+
+	int i;
+
+	mutex_lock(&ts_thread_register);
+
+        for (i = 0; i < TS_THREADS; i++) {
+                 ts_threads[i] = -1;
+	}
+	enabled_registering = 0;
+
+	mutex_unlock(&ts_thread_register);
+
 	mutex_unlock(&ts_mutex);
+
 	return 0;
 }
 
@@ -164,22 +178,68 @@ static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 		control_buffer = (flags *)arg;
 		printk(KERN_DEBUG "%s: control buffer setup at address %p\n", KBUILD_MODNAME, control_buffer);
 
+		DEBUG 
+		printk("thread %d - inspecting the array state\n",current->pid);
+
+
+		mutex_lock(&ts_thread_register);
+
+		DEBUG
+		for (i=0;i< TS_THREADS;i++){
+			printk("slot[%i] - value %d\n",i,ts_threads[i]);
+		}
+
+       		for (i = 0; i < TS_THREADS; i++) {
+               		  ts_threads[i] = -1;
+		}
+
+		DEBUG
+		for (i=0;i< TS_THREADS;i++){
+			printk("slot[%i] - value %d\n",i,ts_threads[i]);
+		}
+
+		mutex_unlock(&ts_thread_register);
+
 		break;
 
  	case IOCTL_REGISTER_THREAD:
 		printk(KERN_INFO "%s: registering thread %d - arg is %p\n", KBUILD_MODNAME, current->pid, (void*)arg);
 
 		mutex_lock(&ts_thread_register);
-                for (i = 0; i < TS_THREADS; i++) {
-                        if (ts_threads[i] == -1) {
-				ts_threads[i] = current->pid;
-                                descriptor = i;
-				goto end_register;
-                        }
-                }
+
+		DEBUG
+		printk("thread %d - inspecting the array state\n",current->pid);
+
+		DEBUG
+		for (i=0;i< TS_THREADS;i++){
+			printk("slot[%i] - value %d\n",i,ts_threads[i]);
+		}
+
+
+		if(enabled_registering){
+                	for (i = 0; i < TS_THREADS; i++) {
+                       	 if (ts_threads[i] == -1) {
+					ts_threads[i] = current->pid;
+               	        	        descriptor = i;
+					goto end_register;
+               	        	 }
+               		 }
+		}
+
+		DEBUG
+		printk(KERN_INFO "%s: registering thread %d - arg is %p - thi is failure descriptor is %d\n", KBUILD_MODNAME, current->pid, (void*)arg,descriptor);
+
 		descriptor = -1;
 		
 end_register:
+		DEBUG
+		printk("thread %d - reinspecting the array state\n",current->pid);
+
+		DEBUG
+		for (i=0;i< TS_THREADS;i++){
+			printk("slot[%i] - value %d\n",i,ts_threads[i]);
+		}
+
 		printk(KERN_INFO "%s: registering thread %d done\n", KBUILD_MODNAME, current->pid);
                 mutex_unlock(&ts_thread_register);
 
@@ -195,7 +255,7 @@ end_register:
 		
 		if(ts_threads[arg] == current->pid){
 			ts_threads[arg]=-1;
-			ret = 0;
+		ret = 0;
 		} else {
 			ret = -EINVAL;
 		} 
@@ -224,10 +284,13 @@ static void scheduler_hook(void) {
 	unsigned int time_cycles;
 	unsigned int stretch_cycles;
 	int i;
+	unsigned int ts_stretch;
+	
 
 	watch_dog++;
 
 	// TODO: questa stampa compare già all'inizio, subito dopo aver installato il modulo, senza però aver ancora usato il device...	
+	DEBUG
 	if (watch_dog >= 0x00000000000000ff){
 //		printk(KERN_DEBUG "%s: watch dog trigger for thread %d CPU-id is %d\n", KBUILD_MODNAME, current->pid, smp_processor_id());
 		watch_dog = 0;
@@ -238,9 +301,23 @@ static void scheduler_hook(void) {
 //			printk(KERN_INFO "%s: found TS thread %d on CPU %d\n", KBUILD_MODNAME, current->pid,smp_processor_id());
 
 			if(control_buffer[i].user == 1){ 
-//				printk(KERN_INFO "%s: Found stretch request by %d on CPU %d\n", KBUILD_MODNAME, current->pid,smp_processor_id());
+
+				DEBUG
+				printk(KERN_INFO "%s: Found stretch request by %d on CPU %d\n", KBUILD_MODNAME, current->pid,smp_processor_id());
+
+				ts_stretch = control_buffer[i].millisec;
+				if(ts_stretch > MAX_STRETCH) ts_stretch = MAX_STRETCH;
+
 				stretch_cycles = (*original_calibration) * (control_buffer[i].millisec/base_time_interrupt); 
-//				printk(KERN_INFO "%s: stretch cycles %u - orginal cycles %u (asked millisec are %d)\n", KBUILD_MODNAME, stretch_cycles,*original_calibration,control_buffer[i].millisec);
+
+				DEBUG
+				printk(KERN_INFO "%s: stretch cycles %u - orginal cycles %u (asked millisec are %d)\n", KBUILD_MODNAME, stretch_cycles,*original_calibration,control_buffer[i].millisec);
+
+				stretch_cycles = (*original_calibration) * (ts_stretch/base_time_interrupt); 
+
+				DEBUG
+				printk(KERN_INFO "%s: RECHECK - stretch cycles %u - orginal cycles %u (granted millisec are %d)\n", KBUILD_MODNAME, stretch_cycles,*original_calibration,ts_stretch);
+
         			local_irq_save(flags);
 				stretch_flag[smp_processor_id()] = 1;
 				clear_tsk_need_resched(current);
@@ -259,7 +336,9 @@ ENABLE 				my__setup_APIC_LVTT(stretch_cycles, 0, 1);
 ENABLE 		my__setup_APIC_LVTT(time_cycles, 0, 1);
 		stretch_flag[smp_processor_id()] = 0;
         	local_irq_restore(flags);
-//		printk(KERN_INFO "%s: realigning the time cycles (tid is %d - CPU id is %d)\n", KBUILD_MODNAME, current->pid, smp_processor_id());
+		
+		DEBUG
+		printk(KERN_INFO "%s: realigning the time cycles (tid is %d - CPU id is %d)\n", KBUILD_MODNAME, current->pid, smp_processor_id());
 	}
 
     hook_end:

@@ -41,3 +41,7 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+lib/timestretchlib.c.bak
+module/timestretch.c.bak
+module/timestretch.h.bak
