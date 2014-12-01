@@ -293,39 +293,56 @@ static void scheduler_hook(void) {
 	unsigned int time_cycles;
 	unsigned int stretch_cycles;
 	int i;
+	int j=0;
+	int cross_check;//dummy - usefull for compilation layout
 	unsigned int ts_stretch;
+	int flag = 0;
 	
 
 	watch_dog++;
 
 	// TODO: questa stampa compare già all'inizio, subito dopo aver installato il modulo, senza però aver ancora usato il device...	
-	DEBUG
+//	DEBUG
 	if (watch_dog >= 0x00000000000000ff){
-//		printk(KERN_DEBUG "%s: watch dog trigger for thread %d CPU-id is %d\n", KBUILD_MODNAME, current->pid, smp_processor_id());
+		printk(KERN_DEBUG "%s: watch dog trigger for thread %d CPU-id is %d\n", KBUILD_MODNAME, current->pid, smp_processor_id());
 		watch_dog = 0;
 	}
 
 	for(i = 0; i < TS_THREADS; i++){
+
+		j++;
 		if(ts_threads[i] == current->pid){
 //			printk(KERN_INFO "%s: found TS thread %d on CPU %d\n", KBUILD_MODNAME, current->pid,smp_processor_id());
 
 			if(control_buffer[i].user == 1){ 
 
-				DEBUG
-				printk(KERN_INFO "%s: Found stretch request by %d on CPU %d\n", KBUILD_MODNAME, current->pid,smp_processor_id());
+//				DEBUG
+//				printk(KERN_INFO "%s: Found stretch request by %d on CPU %d\n", KBUILD_MODNAME, current->pid,smp_processor_id());
 
 				ts_stretch = control_buffer[i].millisec;
 				if(ts_stretch > MAX_STRETCH) ts_stretch = MAX_STRETCH;
 
-				stretch_cycles = (*original_calibration) * (control_buffer[i].millisec/base_time_interrupt); 
+				//stretch_cycles = (*original_calibration) * (control_buffer[i].millisec/base_time_interrupt); 
 
-				DEBUG
-				printk(KERN_INFO "%s: stretch cycles %u - orginal cycles %u (asked millisec are %d)\n", KBUILD_MODNAME, stretch_cycles,*original_calibration,control_buffer[i].millisec);
+//				DEBUG
+//				printk(KERN_INFO "%s: stretch cycles %u - orginal cycles %u (asked millisec are %d)\n", KBUILD_MODNAME, stretch_cycles,*original_calibration,control_buffer[i].millisec);
 
 				stretch_cycles = (*original_calibration) * (ts_stretch/base_time_interrupt); 
 
-				DEBUG
-				printk(KERN_INFO "%s: RECHECK - stretch cycles %u - orginal cycles %u (granted millisec are %d)\n", KBUILD_MODNAME, stretch_cycles,*original_calibration,ts_stretch);
+//				DEBUG
+//				printk(KERN_INFO "%s: RECHECK - stretch cycles %u - orginal cycles %u (granted millisec are %d)\n", KBUILD_MODNAME, stretch_cycles,*original_calibration,ts_stretch);
+
+				//
+				//cross_check = watch_dog++;
+	
+				//
+				//dummy(cross_check);
+
+				//printk("");
+	if (watch_dog >= 0x00000000000000ff){
+		printk(KERN_DEBUG "%s: watch dog trigger for thread %d CPU-id is %d\n", KBUILD_MODNAME, current->pid, smp_processor_id());
+		watch_dog = 0;
+	}
 
         			local_irq_save(flags);
 				stretch_flag[smp_processor_id()] = 1;
@@ -333,12 +350,13 @@ static void scheduler_hook(void) {
 ENABLE 				my__setup_APIC_LVTT(stretch_cycles, 0, 1);
 	       			local_irq_restore(flags);
 			}
-
-			goto hook_end;
+			flag = 1;
+			break;
+		//	goto hook_end;
 		}	
         }
-
-	if (stretch_flag[smp_processor_id()] == 1){
+	
+	if ((j>0)&&(!flag) && (stretch_flag[smp_processor_id()] == 1)){
 		stretch_flag[smp_processor_id()] = 0;
 		time_cycles = *original_calibration;
         	local_irq_save(flags);
@@ -346,13 +364,20 @@ ENABLE 		my__setup_APIC_LVTT(time_cycles, 0, 1);
 		stretch_flag[smp_processor_id()] = 0;
         	local_irq_restore(flags);
 		
-		DEBUG
-		printk(KERN_INFO "%s: realigning the time cycles (tid is %d - CPU id is %d)\n", KBUILD_MODNAME, current->pid, smp_processor_id());
+//		DEBUG
+//		printk(KERN_INFO "%s: realigning the time cycles (tid is %d - CPU id is %d)\n", KBUILD_MODNAME, current->pid, smp_processor_id());
+//		goto hook_end;
+
 	}
 
-    hook_end:
+
+    //hook_end:
+
+	asm volatile("push %%r15 ; pop %%r15"::);
 	return;
 
+//    dummy_hook:
+//	return;
 }
 
 

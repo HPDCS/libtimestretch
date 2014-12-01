@@ -29,7 +29,7 @@ is made visible to the system.
 
 Please note that during the execution of ./configure, the kernel map is
 inspected looking for symbols. Therefore, if the kernel is changed, ./configure
-should be run again. Running only make could generate a module which is
+should be run again. Running only `make` could generate a module which is
 incorrect.
    
    
@@ -52,6 +52,6 @@ be able to use the following API:
 - deregister_ts_thread(void): the thread is no longer interested in time stretching
   facilities, and the module can uninstall any required data structure for it.
 - ts_start(unsigned int millisec): the current threads should not be descheduled
-  for time quantum expiration for at most millisec milliseconds
+  and/or timer-interrupted for time quantum expiration for at most millisec milliseconds
 int ts_end(void): if a timer interrupt arrives, the current thread can be descheduled.
 
