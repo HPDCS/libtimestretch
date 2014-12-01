@@ -43,7 +43,7 @@
 #include <asm/page.h>
 #include <asm/cacheflush.h>
 #include <asm/apic.h>
-// This gives access to read_cr0() and write_cr0()
+
 #if LINUX_VERSION_CODE > KERNEL_VERSION(3,3,0)
     #include <asm/switch_to.h>
 #else
@@ -52,44 +52,24 @@
 
 #include "timestretch.h"
 
-
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,25)
 #error Unsupported Kernel Version
 #endif
 
-#define DEBUG if(0)
-
-static unsigned int stretch_flag[MAX_CPUs] = {[0 ... MAX_CPUs-1] 0}; 
-
-// These variables are set up by configure
-unsigned int * original_calibration = (int*)ORIGINAL_CALIBRATION;
-void (*my__setup_APIC_LVTT)(unsigned int, int, int) =  (void*)SETUP_APIC_LVTT;
-int Hz = KERNEL_HZ;
+#define X86_CR0_WP 0x00010000
 
 
-
-/** FUNCTION PROTOTYPES
- * All the functions in this module must be listed here with a high alignment
- * and explicitly handled in next_function(), so as to allow a correct self-patching
- * independently of the order of symbols emitted by the linker, which changes
- * even when small changes to the code are made.
- * Failing to do so, could prevent self-patching and therefore module usability.
- * This approach does not work only if scheduler_hook is the last function of the module,
- * or if the padding become smaller than 4 bytes...
- * In both cases, only a small change in the code (even placing a nop) could help doing
- * the job!
- */
-static void *next_function(void)  __attribute__ ((aligned (16)));
-static void time_stretch_cleanup(void)  __attribute__ ((aligned (16)));
-static int time_stretch_init(void)  __attribute__ ((aligned (16)));
-static void scheduler_unpatch(void)  __attribute__ ((aligned (16)));
-static int scheduler_patch(void)  __attribute__ ((aligned (16)));
-static void print_bytes(char *str, unsigned char *ptr, size_t s)  __attribute__ ((aligned (16)));
-static int check_patch_compatibility(void)  __attribute__ ((aligned (16)));
-static void scheduler_hook(void)  __attribute__ ((aligned (16)));
-static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)  __attribute__ ((aligned (16)));
-int time_stretch_release(struct inode *inode, struct file *filp)  __attribute__ ((aligned (16)));
-int time_stretch_open(struct inode *inode, struct file *filp)  __attribute__ ((aligned (16)));
+/* FUNCTION PROTOTYPES */
+static void *prepare_self_patch(void);
+static void time_stretch_cleanup(void);
+static int time_stretch_init(void);
+static void scheduler_unpatch(void);
+static int scheduler_patch(void);
+static int check_patch_compatibility(void);
+static void scheduler_hook(void);
+static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
+int time_stretch_release(struct inode *inode, struct file *filp);
+int time_stretch_open(struct inode *inode, struct file *filp);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Alessandro Pellegrini <pellegrini@dis.uniroma1.it>, Francesco Quaglia <quaglia@dis.uniroma1.it>");
@@ -99,6 +79,7 @@ module_exit(time_stretch_cleanup);
 
 
 /* MODULE VARIABLES */
+static unsigned int stretch_flag[MAX_CPUs] = {[0 ... MAX_CPUs-1] 0}; 
 static DEFINE_MUTEX(ts_thread_register);
 static int ts_threads[TS_THREADS]={[0 ... (TS_THREADS-1)] = -1};
 static ulong watch_dog=0;
@@ -111,10 +92,16 @@ static unsigned int time_cycles;
 static flags *control_buffer;
 static DEVICE_ATTR(multimap, S_IRUSR|S_IRGRP|S_IROTH, NULL, NULL);
 static unsigned char finish_task_switch_original_bytes[5];
-void *finish_task_switch = (void *)FTS_ADDR;
-void *finish_task_switch_next = (void *)FTS_ADDR_NEXT;
+static int enabled_registering = 0;
+// From here on, variables initial values are set by configure
+static unsigned int *original_calibration = (int*)ORIGINAL_CALIBRATION;
+static void (*my__setup_APIC_LVTT)(unsigned int, int, int) =  (void*)SETUP_APIC_LVTT;
+static int Hz = KERNEL_HZ;
+static void *finish_task_switch = (void *)FTS_ADDR;
+static void *finish_task_switch_next = (void *)FTS_ADDR_NEXT;
 
-/* File operations for the module */
+
+/* FILE OPERATIONS */
 struct file_operations fops = {
 	open:		time_stretch_open,
 	unlocked_ioctl:	time_stretch_ioctl,
@@ -123,7 +110,7 @@ struct file_operations fops = {
 };
 
 
-int enabled_registering = 0;
+
 
 
 
@@ -145,10 +132,10 @@ int time_stretch_open(struct inode *inode, struct file *filp) {
 }
 
 
+
+
 int time_stretch_release(struct inode *inode, struct file *filp) {
-
 	int i;
-
 	mutex_lock(&ts_thread_register);
 
         for (i = 0; i < TS_THREADS; i++) {
@@ -157,15 +144,14 @@ int time_stretch_release(struct inode *inode, struct file *filp) {
 	enabled_registering = 0;
 
 	mutex_unlock(&ts_thread_register);
-
 	mutex_unlock(&ts_mutex);
-
 	return 0;
 }
 
 
-static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
 
+
+static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
 	int ret = 0;
 	unsigned long fl;
 	int descriptor = -1;
@@ -178,24 +164,10 @@ static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 		control_buffer = (flags *)arg;
 		printk(KERN_DEBUG "%s: control buffer setup at address %p\n", KBUILD_MODNAME, control_buffer);
 
-		DEBUG 
-		printk("thread %d - inspecting the array state\n",current->pid);
-
-
 		mutex_lock(&ts_thread_register);
-
-		DEBUG
-		for (i=0;i< TS_THREADS;i++){
-			printk("slot[%i] - value %d\n",i,ts_threads[i]);
-		}
 
        		for (i = 0; i < TS_THREADS; i++) {
                		  ts_threads[i] = -1;
-		}
-
-		DEBUG
-		for (i=0;i< TS_THREADS;i++){
-			printk("slot[%i] - value %d\n",i,ts_threads[i]);
 		}
 
 		mutex_unlock(&ts_thread_register);
@@ -207,15 +179,6 @@ static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 
 		mutex_lock(&ts_thread_register);
 
-		DEBUG
-		printk("thread %d - inspecting the array state\n",current->pid);
-
-		DEBUG
-		for (i=0;i< TS_THREADS;i++){
-			printk("slot[%i] - value %d\n",i,ts_threads[i]);
-		}
-
-
 		if(enabled_registering){
                 	for (i = 0; i < TS_THREADS; i++) {
                        	 if (ts_threads[i] == -1) {
@@ -226,20 +189,9 @@ static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned lon
                		 }
 		}
 
-		DEBUG
-		printk(KERN_INFO "%s: registering thread %d - arg is %p - thi is failure descriptor is %d\n", KBUILD_MODNAME, current->pid, (void*)arg,descriptor);
-
 		descriptor = -1;
 		
-end_register:
-		DEBUG
-		printk("thread %d - reinspecting the array state\n",current->pid);
-
-		DEBUG
-		for (i=0;i< TS_THREADS;i++){
-			printk("slot[%i] - value %d\n",i,ts_threads[i]);
-		}
-
+    end_register:
 		printk(KERN_INFO "%s: registering thread %d done\n", KBUILD_MODNAME, current->pid);
                 mutex_unlock(&ts_thread_register);
 
@@ -264,7 +216,7 @@ end_register:
 
 		time_cycles = *original_calibration;
         	local_irq_save(fl);
-ENABLE 		my__setup_APIC_LVTT(time_cycles,0,1);
+		my__setup_APIC_LVTT(time_cycles,0,1);
 		stretch_flag[smp_processor_id()] = 0;
         	local_irq_restore(fl);
 
@@ -277,14 +229,6 @@ ENABLE 		my__setup_APIC_LVTT(time_cycles,0,1);
 	return ret;
 }
 
-static void print_bytes(char *str, unsigned char *ptr, size_t s) {
-	size_t i;
-
-	printk(KERN_DEBUG "%s: %s: ", KBUILD_MODNAME, str);
-	for(i = 0; i < s; i++)
-		printk(KERN_CONT "%02x ", ptr[i]);
-	printk(KERN_CONT "\n");
-}
 
 
 static void scheduler_hook(void) {
@@ -294,15 +238,12 @@ static void scheduler_hook(void) {
 	unsigned int stretch_cycles;
 	int i;
 	int j=0;
-	int cross_check;//dummy - usefull for compilation layout
 	unsigned int ts_stretch;
-	int flag = 0;
 	
 
 	watch_dog++;
 
 	// TODO: questa stampa compare già all'inizio, subito dopo aver installato il modulo, senza però aver ancora usato il device...	
-//	DEBUG
 	if (watch_dog >= 0x00000000000000ff){
 		printk(KERN_DEBUG "%s: watch dog trigger for thread %d CPU-id is %d\n", KBUILD_MODNAME, current->pid, smp_processor_id());
 		watch_dog = 0;
@@ -312,73 +253,42 @@ static void scheduler_hook(void) {
 
 		j++;
 		if(ts_threads[i] == current->pid){
-//			printk(KERN_INFO "%s: found TS thread %d on CPU %d\n", KBUILD_MODNAME, current->pid,smp_processor_id());
-
 			if(control_buffer[i].user == 1){ 
-
-//				DEBUG
-//				printk(KERN_INFO "%s: Found stretch request by %d on CPU %d\n", KBUILD_MODNAME, current->pid,smp_processor_id());
-
 				ts_stretch = control_buffer[i].millisec;
-				if(ts_stretch > MAX_STRETCH) ts_stretch = MAX_STRETCH;
-
-				//stretch_cycles = (*original_calibration) * (control_buffer[i].millisec/base_time_interrupt); 
-
-//				DEBUG
-//				printk(KERN_INFO "%s: stretch cycles %u - orginal cycles %u (asked millisec are %d)\n", KBUILD_MODNAME, stretch_cycles,*original_calibration,control_buffer[i].millisec);
+				
+				if(ts_stretch > MAX_STRETCH)
+					ts_stretch = MAX_STRETCH;
 
 				stretch_cycles = (*original_calibration) * (ts_stretch/base_time_interrupt); 
-
-//				DEBUG
-//				printk(KERN_INFO "%s: RECHECK - stretch cycles %u - orginal cycles %u (granted millisec are %d)\n", KBUILD_MODNAME, stretch_cycles,*original_calibration,ts_stretch);
-
-				//
-				//cross_check = watch_dog++;
-	
-				//
-				//dummy(cross_check);
-
-				//printk("");
-	if (watch_dog >= 0x00000000000000ff){
-		printk(KERN_DEBUG "%s: watch dog trigger for thread %d CPU-id is %d\n", KBUILD_MODNAME, current->pid, smp_processor_id());
-		watch_dog = 0;
-	}
 
         			local_irq_save(flags);
 				stretch_flag[smp_processor_id()] = 1;
 				clear_tsk_need_resched(current);
-ENABLE 				my__setup_APIC_LVTT(stretch_cycles, 0, 1);
+				my__setup_APIC_LVTT(stretch_cycles, 0, 1);
 	       			local_irq_restore(flags);
 			}
-			flag = 1;
-			break;
-		//	goto hook_end;
+			goto hook_end;
 		}	
         }
 	
-	if ((j>0)&&(!flag) && (stretch_flag[smp_processor_id()] == 1)){
+	if (stretch_flag[smp_processor_id()] == 1) {
 		stretch_flag[smp_processor_id()] = 0;
 		time_cycles = *original_calibration;
         	local_irq_save(flags);
-ENABLE 		my__setup_APIC_LVTT(time_cycles, 0, 1);
+ 		my__setup_APIC_LVTT(time_cycles, 0, 1);
 		stretch_flag[smp_processor_id()] = 0;
         	local_irq_restore(flags);
-		
-//		DEBUG
-//		printk(KERN_INFO "%s: realigning the time cycles (tid is %d - CPU id is %d)\n", KBUILD_MODNAME, current->pid, smp_processor_id());
-//		goto hook_end;
-
 	}
 
 
-    //hook_end:
+    hook_end:
 
-	asm volatile("push %%r15 ; pop %%r15"::);
+	// This gives us space for self patching
+	asm volatile("nop;nop;nop;nop");
 	return;
-
-//    dummy_hook:
-//	return;
 }
+
+
 
 
 static int check_patch_compatibility(void) {
@@ -388,10 +298,6 @@ static int check_patch_compatibility(void) {
 	int i;
 	unsigned char magic[9] = {0x41, 0x58, 0x59, 0x5a, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f};
 	int j = 0;
-
-
-	print_bytes("I will check the compatibility on these bytes", finish_task_switch, finish_task_switch_next - finish_task_switch);
-
 
 	printk(KERN_DEBUG "Scanning bytes backwards for magic matching: ");
 	ptr = (unsigned char *)finish_task_switch_next - 1;
@@ -450,48 +356,11 @@ static int check_patch_compatibility(void) {
                         ((unsigned char *)finish_task_switch_next)[-2],
                         ((unsigned char *)finish_task_switch_next)[-1]);
 
-/*	j=0;
-	while((long)(correct_pattern_position + j) < (long)finish_task_switch_next){
-		printk(KERN_CONT "%02x\n",
-                        ((unsigned char *)correct_pattern_position)[j]);
-	
-		j++;
-	}
-
-	finish_task_switch_next = correct_pattern_position + 1;
-
-	ptr = (unsigned char *)finish_task_switch_next - 1;
-	
-	for(pos = 0; pos < 5; pos++) {
-		matched = 0;
-		
-		for(i = 0; i < 9; i++) {
-			if(*ptr == magic[i]) {
-				matched = 1;
-				break;
-			}
-		}
-
-		if(!matched)
-			goto failed;
-
-		ptr--;
-	}
-*/
 	return 0;
 
+
     failed: 
-
 	printk(KERN_NOTICE "%s: magic check on bytes ", KBUILD_MODNAME);
-
-/*	printk(KERN_CONT "%02x %02x %02x %02x %02x failed.\n",
-                        ((unsigned char *)correct_pattern_position)[0],
-                        ((unsigned char *)correct_pattern_position)[1],
-                        ((unsigned char *)correct_pattern_position)[2],
-                        ((unsigned char *)correct_pattern_position)[3],
-                        ((unsigned char *)correct_pattern_position)[4]);
-
-*/
 	printk(KERN_CONT "%02x %02x %02x %02x %02x failed.\n",
                         ((unsigned char *)finish_task_switch_next)[-5],
                         ((unsigned char *)finish_task_switch_next)[-4],
@@ -506,8 +375,6 @@ static int check_patch_compatibility(void) {
 
 
 static int scheduler_patch(void) {
-
-	#define X86_CR0_WP 0x00010000
 
 	int pos = 0;
 	long displacement;
@@ -525,10 +392,8 @@ static int scheduler_patch(void) {
 	if(ret)
 		goto out;
 
-
 	// Backup the final bytes of finish_task_switch, for later unmounting and finalization of the patch
 	memcpy(finish_task_switch_original_bytes, finish_task_switch_next - 5, 5);
-	print_bytes("Made a backup of bytes", finish_task_switch_original_bytes, 5);
 
 	// Compute the displacement for the jump to be placed at the end of the scheduler
 	displacement = ((long)scheduler_hook - (long)finish_task_switch_next);
@@ -547,45 +412,23 @@ static int scheduler_patch(void) {
         bytes_to_redirect[pos++] = (unsigned char)(displacement >> 16 & 0xff);
         bytes_to_redirect[pos++] = (unsigned char)(displacement >> 24 & 0xff);
 
-	print_bytes("assembled jump is", bytes_to_redirect, 5);
-
 	// Find the correct place where to store backed up bytes from the original scheduler.
 	// This is starting exactly at the ret (0xc3) instruction at the end of
 	// scheduler hook. We start from the function after it, and for safety we check whether
 	// there is enough space or not.
-	ptr = (unsigned char *)next_function();
+	ptr = (unsigned char *)prepare_self_patch();
 	if(ptr == NULL) {
 		ret = -1;
 		goto out;
 	}
 	
-	i = 0;
-	while(*ptr != 0xc3) {
-		i++;
-		ptr--;
-		// This is a sanity check. If i grows too much, we're surely gonna patch something completely wrong!
-		// 16 is not a random number: is the highest alignment specified by the __attribute__ to the next function
-		if(i > 16) {
-			printk(KERN_NOTICE "%s: I'm unable to patch myself... %s:%d\n", KBUILD_MODNAME, __FILE__, __LINE__);
-			ret = -1;
-			goto out;
-		}
-	}
-	if(i < 5) {
-		printk(KERN_NOTICE "%s: not enough space to patch my own scheduler_hook function. Aborting...\n", KBUILD_MODNAME);
-		ret = -1;
-		goto out;
-	}
-
 	// Now do the actual patching. Clear CR0.WP to disable memory protection.
 	cr0 = read_cr0();
 	write_cr0(cr0 & ~X86_CR0_WP);
-
 	// Patch the end of our scheduler_hook to execute final bytes of finish_task_switch
 	memcpy(ptr, finish_task_switch_original_bytes, 5);
 	// Patch finish_task_switch to jump, at the end, to scheduler_hook
 	memcpy((unsigned char *)finish_task_switch_next - 5, bytes_to_redirect, 5);
-		
 	write_cr0(cr0);
 	
 	printk(KERN_INFO "%s: scheduler correctly patched...\n", KBUILD_MODNAME);
@@ -593,6 +436,8 @@ static int scheduler_patch(void) {
     out:
 	return ret;
 }
+
+
 
 
 static void scheduler_unpatch(void) {
@@ -608,6 +453,8 @@ static void scheduler_unpatch(void) {
 
 	printk(KERN_INFO "%s: standard scheduler correctly restored...\n", KBUILD_MODNAME);
 }
+
+
 
 
 static int time_stretch_init(void) {
@@ -674,6 +521,8 @@ static int time_stretch_init(void) {
 }
 
 
+
+
 static void time_stretch_cleanup(void) {
 
 	int i;
@@ -696,7 +545,7 @@ static void time_stretch_cleanup(void) {
 	stretch_flag[smp_processor_id()] = 0;
 	time_cycles = *original_calibration;
         local_irq_save(flags);
-ENABLE 	my__setup_APIC_LVTT(time_cycles, 0, 1);
+ 	my__setup_APIC_LVTT(time_cycles, 0, 1);
 	stretch_flag[smp_processor_id()] = 0;
         local_irq_restore(flags);
 	printk(KERN_DEBUG "%s: realigning time cycles (tid is %d - CPU id is %d)\n", KBUILD_MODNAME, current->pid, smp_processor_id());
@@ -708,16 +557,15 @@ ENABLE 	my__setup_APIC_LVTT(time_cycles, 0, 1);
 }
 
 
-static void *next_function(void) {
+static void *prepare_self_patch(void) {
 	unsigned char *next = NULL;
 	// All functions in this module, excepting scheduler_hook.
 	// Read the comment above function prototypes for an explanation
-	void *functions[] = {	next_function,
+	void *functions[] = {	prepare_self_patch,
 				time_stretch_cleanup,
 				time_stretch_init,
 				scheduler_unpatch,
 				scheduler_patch,
-				print_bytes,
 				check_patch_compatibility,
 				time_stretch_ioctl,
 				time_stretch_release,
@@ -725,6 +573,10 @@ static void *next_function(void) {
 				NULL};
 	void *curr_f;
 	int i = 0;
+	unsigned char *ret_insn;
+	unsigned long cr0;
+
+
 	
 	curr_f = functions[0];
 	while(curr_f != NULL) {
@@ -746,20 +598,41 @@ static void *next_function(void) {
                 next = (unsigned char*)((ulong) next & 0xfffffffffffff000);
                 next--;
 
-                while((long)next >= (long)scheduler_hook) {
-                        if(*next == 0xc3) {
-                                break;
-                        }
-			next--;
-                }
-
-		// We didn't have luck...
-		if((long)next == (long)scheduler_hook)
-			next = NULL;
-		else
-			next += 5; // To be compliant with the patching algorithm when a next function is found
         }
 
-	return (void *)next;
-}
+	// We now look for the ret instruction. Some care must be taken here. We assume before the ret
+	// there is at least one nop...
+        while((long)next >= (long)scheduler_hook) {
+                if(*next == 0xc3) {
+			if(*(next-1) == 0x58 || *(next-1) == 0x59 || *(next-1) == 0x5a || *(next-1) == 0x5b ||
+			   *(next-1) == 0x5c || *(next-1) == 0x5d || *(next-1) == 0x5d || *(next-1) == 0x5f)
+	        		break;
+                }
+		next--;
+        }
 
+	printk(KERN_DEBUG "%s: dentified ret instruction byte %02x at address %p\n", KBUILD_MODNAME, *next, next);
+
+	// Did we have luck?
+	if((long)next == (long)scheduler_hook) {
+		ret_insn = NULL;
+		goto out;
+	} else {
+		ret_insn = next;
+	}
+
+	// Now scan backwards until we find the last nop we have placed in our code
+	while(*next != 0x90)
+		next--;
+
+	// Move backwars anything from here to the ret instruction
+	cr0 = read_cr0();
+	write_cr0(cr0 & ~X86_CR0_WP);
+	memcpy(next - 3, next + 1, ret_insn - next - 1);
+	write_cr0(cr0);
+	
+	// We have moved everything 4 bytes behind, which gives us space for finalizing the patch
+	ret_insn -= 4;
+    out:
+	return (void *)ret_insn;
+}
