@@ -44,40 +44,103 @@
  * By this example it is clear that using libtimestretch you can have with contention
  * the same execution time as if there were no contention at all, upon request.
  */
-
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <pthread.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <timestretch.h>
 
-#define DELAY 500000000
+#include "timer.h"
 
+#define DELAY 1200000000
+
+pthread_t tid[CPU_CORES];
+
+int ret;
+int dummy;
+
+void * BusyLoopThread( void * arg){
+
+	int i;
+	int j;
+
+	DECLARE_TIMER(mary);	
+
+	printf("Thread %d - Running my long lasting loop... ", pthread_self());
+        //fflush(stdout);
+	
+	register_ts_thread();
+
+for(j=0;j<10;j++){
+	ts_start(2000);
+	TIMER_START(mary);
+        for (i=0;i<DELAY;i++);
+	TIMER_VALUE(diff,mary);
+	ts_end();
+	printf("Thread %d - done\n",pthread_self());
+	TIMER_PRINT(diff);
+}
+
+
+	deregister_ts_thread();
+
+	return (void*)&dummy;
+
+}
+
+void * BusyLoopThreadNoStretch( void * arg){
+
+	int i;
+	int j;
+
+	DECLARE_TIMER(mary);	
+
+	printf("Thread %d - Running my long lasting loop... ", pthread_self());
+        //fflush(stdout);
+	
+
+for(j=0;j<10;j++){
+	TIMER_START(mary);
+        for (i=0;i<DELAY;i++);
+	TIMER_VALUE(diff,mary);
+	printf("Thread %d - done\n",pthread_self());
+	TIMER_PRINT(diff);
+}
+
+}
 
 int main(int argc, char **argv) {
 	int i;
-	int ret;
+	int a;
+	void * status;
 	
 	printf("I'm process %d\n",getpid());
-
 	ret = ts_open();
 	if(ret != TS_OPEN_ERROR) {
 		printf("Module is active.\n");
-		register_ts_thread();
-		ts_start(3000);
 	} else {
 		printf("Module is inactive.\n");
 	}
 
-	printf("Running my long lasting loop... ");
-	fflush(stdout);
-	for (i=0;i<DELAY;i++);
-	printf("done\n");
+	if(CPU_CORES == 1){
 
+//		BusyLoopThreadNoStretch(NULL);
+		BusyLoopThread(NULL);
+		return 0;
+	}
 
-	if(ret != TS_OPEN_ERROR) {
-		ts_end();
-		deregister_ts_thread();
+	for (i=0;i<CPU_CORES;i++){
+		a = pthread_create((tid+i), NULL, BusyLoopThread, NULL );
+		if (a){
+     		 printf("cannot create thread for error %d\n", i);
+      		 exit(-1);
+      		}
+	}
+	for (i=0;i<CPU_CORES;i++){
+		pthread_join(tid[i], &status);	
 	}
 
 	return 0;
 }
+

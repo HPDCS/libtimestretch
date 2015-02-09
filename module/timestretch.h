@@ -36,6 +36,7 @@
 #define MAX_STRETCH 3000 //this is expressed in milliseconds
 
 #define DELAY 1000
+#define ENABLE if(1)
 #define MAX_CPUs 32
 #define TS_THREADS 16 //max number of concurrent HTM threads with time stretch
 
