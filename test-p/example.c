@@ -53,7 +53,7 @@
 
 #include "timer.h"
 
-#define DELAY 1200000000
+#define DELAY 120000000
 
 pthread_t tid[CPU_CORES];
 
@@ -73,7 +73,7 @@ void * BusyLoopThread( void * arg){
 	register_ts_thread();
 
 for(j=0;j<10;j++){
-	ts_start(2000);
+	ts_start(1000);
 	TIMER_START(mary);
         for (i=0;i<DELAY;i++);
 	TIMER_VALUE(diff,mary);
@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
 
 	if(CPU_CORES == 1){
 
-//		BusyLoopThreadNoStretch(NULL);
+		BusyLoopThreadNoStretch(NULL);
 		BusyLoopThread(NULL);
 		return 0;
 	}

@@ -80,7 +80,7 @@ int Hz = KERNEL_HZ;
  * even when small changes to the code are made.
  * Failing to do so, could prevent self-patching and therefore module usability.
  * This approach does not work only if scheduler_hook is the last function of the module,
- * or if the padding become smaller than 4 bytes...
+ * or if the padding becomes smaller than 4 bytes...
  * In both cases, only a small change in the code (even placing a nop) could help doing
  * the job!
  */
@@ -95,6 +95,7 @@ static void scheduler_hook(void);
 static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
 int time_stretch_release(struct inode *inode, struct file *filp);
 int time_stretch_open(struct inode *inode, struct file *filp);
+void timer_reset(void*);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Alessandro Pellegrini <pellegrini@dis.uniroma1.it>, Francesco Quaglia <quaglia@dis.uniroma1.it>");
@@ -170,6 +171,10 @@ int time_stretch_release(struct inode *inode, struct file *filp) {
 	mutex_unlock(&ts_thread_register);
 
 	mutex_unlock(&ts_mutex);
+	
+	timer_reset(NULL);
+
+	smp_call_function(timer_reset, NULL, 1);
 
 	return 0;
 }
@@ -514,7 +519,7 @@ static int scheduler_patch(void) {
 	int pos = 0;
 	long displacement;
 	int ret = 0;
-	int i;
+	//int i;
 	unsigned char *ptr;
 	unsigned long cr0;
 	unsigned char bytes_to_redirect[5];
@@ -699,13 +704,15 @@ static void time_stretch_cleanup(void) {
 	for(i=0; i < DELAY; i++) printk(KERN_CONT ".");
 	printk(KERN_CONT " delay is over\n");
 
+        local_irq_save(flags);
 	stretch_flag[smp_processor_id()] = 0;
 	time_cycles = *original_calibration;
-        local_irq_save(flags);
 ENABLE 	my__setup_APIC_LVTT(time_cycles, 0, 1);
 	stretch_flag[smp_processor_id()] = 0;
         local_irq_restore(flags);
-	printk(KERN_DEBUG "%s: realigning time cycles (tid is %d - CPU id is %d)\n", KBUILD_MODNAME, current->pid, smp_processor_id());
+        printk(KERN_DEBUG "%s: core %d - realigning time cycles (tid is %d - CPU id is %d)\n", KBUILD_MODNAME, smp_processor_id(), current->pid, smp_processor_id());
+
+	smp_call_function(timer_reset, NULL, 1);
 
 	for(i = 0; i < MAX_CPUs; i++){
 		while(stretch_flag[i]);
@@ -713,6 +720,21 @@ ENABLE 	my__setup_APIC_LVTT(time_cycles, 0, 1);
 	printk(KERN_INFO "%s: unmounted successfully\n", KBUILD_MODNAME);
 }
 
+void timer_reset(void* dummy){
+
+	unsigned long flags;
+	unsigned int time_cycles;
+
+        local_irq_save(flags);
+        time_cycles = *original_calibration;
+ENABLE  my__setup_APIC_LVTT(time_cycles, 0, 1);
+        stretch_flag[smp_processor_id()] = 0;
+        local_irq_restore(flags);
+        printk(KERN_DEBUG "%s: core %d - realigning time cycles (tid is %d - CPU id is %d)\n", KBUILD_MODNAME, smp_processor_id(), current->pid, smp_processor_id());
+
+	
+
+}
 
 static void *prepare_self_patch(void) {
 	unsigned char *next = NULL;
@@ -728,6 +750,7 @@ static void *prepare_self_patch(void) {
 				time_stretch_ioctl,
 				time_stretch_release,
 				time_stretch_open,
+				timer_reset,
 				NULL};
 	void *curr_f;
 	int i = 0;
