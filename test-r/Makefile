@@ -13,7 +13,7 @@ usage:
 	echo 'make command [NCORES=number-of-cpucores]' 
 
 example:
-	gcc -c test-r.c $(FLAGS)
+	gcc -c test-r.c $(FLAGS) -I../lib
 	gcc -o test-r test-r.o $(OBJ_DIR)overticklib.o -lpthread
 
 clean:

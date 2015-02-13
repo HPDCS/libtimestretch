@@ -323,6 +323,25 @@ static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 
 		break;
 
+
+ 	case IOCTL_SETUP_CALLBACK:
+
+		ret = -1;
+
+		for(i = 0; i < TS_THREADS; i++){
+
+			if(ts_threads[i] == current->pid){
+			DEBUG
+			printk(KERN_INFO "%s: found registered thread entry %d - setting up callback at address %p\n", KBUILD_MODNAME, i, arg);
+
+			callback[i] = arg;
+			ret = 0;
+//			break;
+			}	
+		}
+
+		break;
+
  	case IOCTL_REGISTER_THREAD:
 		DEBUG
 		printk(KERN_INFO "%s: registering thread %d - arg is %p\n", KBUILD_MODNAME, current->pid, (void*)arg);

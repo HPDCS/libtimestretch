@@ -9,12 +9,13 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <timestretch.h>
+#include <overtick.h>
 
 #define DELAY 5000000
 
 pthread_t tid[CPU_CORES];
 
+void* addr;
 int ret;
 int dummy;
 
@@ -25,6 +26,12 @@ void * RegisterThread( void * arg){
 	if(register_ts_thread() == TS_REGISTER_OK){ 
 		printf("Thread %u registered\n",pthread_self());
 		//	sleep(1);
+		if(register_callback(addr) == TS_REGISTER_CALLBACK_OK){
+			printf("Thread %u registered callback\n",pthread_self());
+		}
+		else{
+			printf("Thread %u register callback error\n",pthread_self());
+		}
 		for (i=0; i<DELAY; i++);
 		if(deregister_ts_thread() == TS_DEREGISTER_OK){ 
 			printf("Thread %u deregistered\n",pthread_self());
