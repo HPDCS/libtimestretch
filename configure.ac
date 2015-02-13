@@ -1,6 +1,6 @@
 AC_PREREQ([2.63])
 AC_INIT([timestretch], [1.0.0], [quaglia@dis.uniroma1.it,pellegrini@dis.uniroma1.it])
-AM_INIT_AUTOMAKE([foreign])
+AM_INIT_AUTOMAKE([foreign, subdir-objects])
 AC_CONFIG_MACRO_DIR([m4])
 
 # Preliminary check: are we on Linux?
