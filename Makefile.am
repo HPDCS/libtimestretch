@@ -1,13 +1,13 @@
 ACLOCAL_AMFLAGS = -I m4
 AM_CPPFLAGS = -I$(abs_top_srcdir)
 EXTRA_DIST = COPYING INSTALL README \
-	     module/Makefile module/overtick.c module/overtick.h module/83-overtick.rules \
+	     module/Makefile module/overtick.c module/overtick.h module/83-timestretch.rules \
              lib/overticklib.c lib/overtick.h 
 
 udevdir = /etc/udev/rules.d
 initdir = @sysconfdir@/init.d
 
-udev_DATA = module/83-overtick.rules
+udev_DATA = module/83-timestretch.rules
 
 lib_LIBRARIES = libovertick.a
 libovertick_a_SOURCES=lib/overticklib.c
