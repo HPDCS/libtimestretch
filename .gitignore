@@ -4,8 +4,7 @@
 *.mod
 *.mod.c
 *.o
-*.o
-*.o.rs
+*.o.cmd
 *.ko
 *.a
 *.la
@@ -15,6 +14,8 @@
 *.dylib
 *.out
 *.Po
+*.order
+*.symvers
 
 Makefile
 Makefile.in
@@ -40,5 +41,3 @@ lt~obsolete.m4
 .libs/
 *.l[ao]
 *~
-*.order
-*.symvers
