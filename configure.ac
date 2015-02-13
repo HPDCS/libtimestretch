@@ -103,6 +103,58 @@ fi
 AC_MSG_RESULT([found at 0x$finish_task_switch_next])
 AC_SUBST([FTS_ADDR_NEXT], [0x$finish_task_switch_next])
 
+
+#the below symbols are required to patch the APIC timer interrupt (top half)
+# Get apic_timer_interrupt in the current kernel
+AC_MSG_CHECKING([the address of function apic_timer_interrupt in the current kernel])
+fts_line=$($GREP -n " apic_timer_interrupt" /boot/System.map-$(uname -r) | $SED 's/:.*//')
+apic_timer_interrupt=$($SED "${fts_line}q;d" /boot/System.map-$(uname -r) | $SED 's/ .*//')
+if test -z "$apic_timer_interrupt"; then
+        AC_MSG_ERROR([Address of function apic_timer_interrupt not found in kernel map])
+fi
+AC_MSG_RESULT([found at 0x$apic_timer_interrupt])
+AC_SUBST([APIC_TIMER_INTERRUPT], [0x$apic_timer_interrupt])
+
+# Get local_apic_timer_interrupt in the current kernel
+AC_MSG_CHECKING([the address of function local_apic_timer_interrupt in the current kernel])
+fts_line=$($GREP -n "local_apic_timer_interrupt" /boot/System.map-$(uname -r) | $SED 's/:.*//')
+local_apic_timer_interrupt=$($SED "${fts_line}q;d" /boot/System.map-$(uname -r) | $SED 's/ .*//')
+if test -z "$local_apic_timer_interrupt"; then
+        AC_MSG_ERROR([Address of function local_apic_timer_interrupt not found in kernel map])
+fi
+AC_MSG_RESULT([found at 0x$local_apic_timer_interrupt])
+AC_SUBST([LOCAL_APIC_TIMER_INTERRUPT], [0x$local_apic_timer_interrupt])
+
+# Get exit_idle in the current kernel
+AC_MSG_CHECKING([the address of function exit_idle in the current kernel])
+fts_line=$($GREP -n " exit_idle" /boot/System.map-$(uname -r) | $SED 's/:.*//')
+exit_idle=$($SED "${fts_line}q;d" /boot/System.map-$(uname -r) | $SED 's/ .*//')
+if test -z "$exit_idle"; then
+        AC_MSG_ERROR([Address of function exit_idle not found in kernel map])
+fi
+AC_MSG_RESULT([found at 0x$exit_idle])
+AC_SUBST([EXIT_IDLE], [0x$exit_idle])
+
+# Get irq_enter in the current kernel
+AC_MSG_CHECKING([the address of function irq_enter in the current kernel])
+fts_line=$($GREP -n " irq_enter" /boot/System.map-$(uname -r) | $SED 's/:.*//')
+irq_enter=$($SED "${fts_line}q;d" /boot/System.map-$(uname -r) | $SED 's/ .*//')
+if test -z "$irq_enter"; then
+        AC_MSG_ERROR([Address of function irq_enter not found in kernel map])
+fi
+AC_MSG_RESULT([found at 0x$irq_enter])
+AC_SUBST([IRQ_ENTER], [0x$irq_enter])
+
+# Get irq_exit in the current kernel
+AC_MSG_CHECKING([the address of function irq_exit in the current kernel])
+fts_line=$($GREP -n " irq_exit" /boot/System.map-$(uname -r) | $SED 's/:.*//')
+irq_exit=$($SED "${fts_line}q;d" /boot/System.map-$(uname -r) | $SED 's/ .*//')
+if test -z "$irq_exit"; then
+        AC_MSG_ERROR([Address of function irq_exit not found in kernel map])
+fi
+AC_MSG_RESULT([found at 0x$irq_exit])
+AC_SUBST([IRQ_EXIT], [0x$irq_exit])
+
 # Are kernel headers installed?
 AC_CHECK_HEADERS([linux/ioctl.h],,
        [AC_MSG_ERROR([You must install kernel-headers])])

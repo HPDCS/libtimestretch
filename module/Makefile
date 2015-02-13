@@ -1,1 +1,1 @@
-obj-m := timestretch.o
+obj-m := overtick.o

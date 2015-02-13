@@ -14,7 +14,7 @@ usage:
 
 example:
 	gcc -c test-r.c $(FLAGS)
-	gcc -o test-r test-r.o $(OBJ_DIR)timestretchlib.o -lpthread
+	gcc -o test-r test-r.o $(OBJ_DIR)overticklib.o -lpthread
 
 clean:
 	rm test-r 
