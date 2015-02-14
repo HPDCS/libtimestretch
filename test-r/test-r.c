@@ -15,9 +15,11 @@
 
 pthread_t tid[CPU_CORES];
 
-void* addr;
+void* addr = 0xf0f0f0f;
 int ret;
 int dummy;
+
+extern void overtick_callback(void);
 
 void * RegisterThread( void * arg){
 
@@ -26,13 +28,16 @@ void * RegisterThread( void * arg){
 	if(register_ts_thread() == TS_REGISTER_OK){ 
 		printf("Thread %u registered\n",pthread_self());
 		//	sleep(1);
-		if(register_callback(addr) == TS_REGISTER_CALLBACK_OK){
+
+		if(register_callback(overtick_callback) == TS_REGISTER_CALLBACK_OK){
 			printf("Thread %u registered callback\n",pthread_self());
 		}
 		else{
 			printf("Thread %u register callback error\n",pthread_self());
 		}
+
 		for (i=0; i<DELAY; i++);
+
 		if(deregister_ts_thread() == TS_DEREGISTER_OK){ 
 			printf("Thread %u deregistered\n",pthread_self());
 		}

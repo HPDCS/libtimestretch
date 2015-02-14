@@ -332,9 +332,9 @@ static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 
 			if(ts_threads[i] == current->pid){
 			DEBUG
-			printk(KERN_INFO "%s: found registered thread entry %d - setting up callback at address %p\n", KBUILD_MODNAME, i, arg);
+			printk(KERN_INFO "%s: found registered thread entry %d - setting up callback at address %p\n", KBUILD_MODNAME, i, (void*)arg);
 
-			callback[i] = arg;
+			callback[i] = (void*)arg;
 			ret = 0;
 //			break;
 			}	
@@ -397,6 +397,7 @@ end_register:
 		
 		if(ts_threads[arg] == current->pid){
 			ts_threads[arg]=-1;
+			callback[i]=NULL;
 		ret = 0;
 		} else {
 			ret = -EINVAL;

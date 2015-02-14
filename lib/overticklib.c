@@ -108,6 +108,9 @@ int deregister_ts_thread(void) {
 
 int register_callback(void* addr) {
 	int ret;
+
+	printf("library has been called\n");
+
 	if (lookup.me != getpid()){
 		return TS_REGISTER_CALLBACK_ERROR;
 	}

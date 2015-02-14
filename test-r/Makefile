@@ -13,8 +13,9 @@ usage:
 	echo 'make command [NCORES=number-of-cpucores]' 
 
 example:
-	gcc -c test-r.c $(FLAGS) -I../lib
-	gcc -o test-r test-r.o $(OBJ_DIR)overticklib.o -lpthread
+	gcc -c test-r.c $(FLAGS)
+	gcc -c callback.c $(FLAGS)
+	gcc -o test-r test-r.o callback.o $(OBJ_DIR)overticklib.o -lpthread
 
 clean:
 	rm test-r 
