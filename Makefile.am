@@ -18,7 +18,8 @@ module/overtick.ko: module/overtick.c
 	test -f $(builddir)/module/Makefile || $(LN_S) $(abs_top_srcdir)/module/Makefile $(builddir)/module/
 	test -f $(builddir)/module/overtick.c || $(LN_S) $(abs_top_srcdir)/module/overtick.c $(builddir)/module/
 	test -f $(builddir)/module/overtick.h || $(LN_S) $(abs_top_srcdir)/module/overtick.h $(builddir)/module/
-	$(MAKE) -C $(KERNEL_SRC) M=$(abs_top_builddir)/module EXTRA_CFLAGS="-DORIGINAL_CALIBRATION=$(ORIGINAL_CALIBRATION) \
+	$(MAKE) -C $(KERNEL_SRC) M=$(abs_top_builddir)/module EXTRA_CFLAGS="-Wall \
+									    -DORIGINAL_CALIBRATION=$(ORIGINAL_CALIBRATION) \
 									    -DSETUP_APIC_LVTT=$(SETUP_APIC_LVTT) -DKERNEL_HZ=$(KERNEL_HZ) \
 									    -DFTS_ADDR=$(FTS_ADDR) -DFTS_ADDR_NEXT=$(FTS_ADDR_NEXT)\
 									    -DAPIC_TIMER_INTERRUPT=$(APIC_TIMER_INTERRUPT)\
