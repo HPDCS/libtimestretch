@@ -153,7 +153,7 @@ struct file_operations fops = {
 int enabled_registering = 0;
 
 
-//Thsi is copied by the kernel (in structure) and augmented with audit capabilities - however,the orignal calls (of unexported functions) are replaced via function pointers
+//This is copied by the kernel (in structure) and augmented with audit capabilities - however,the orignal calls (of unexported functions) are replaced via function pointers
 
 int apic_interrupt_watch_dog= 0;
  
@@ -192,7 +192,7 @@ void my_smp_apic_timer_interrupt(struct pt_regs* regs){
 
 		if(ts_threads[i] == current->pid){
 			DEBUG
-			printk(KERN_INFO "%s: found APIC registered thread %d on CPU %d - overtick count is %d\n", KBUILD_MODNAME, current->pid,smp_processor_id(),overtick_count[i]);
+			printk(KERN_INFO "%s: found APIC registered thread %d on CPU %d - overtick count is %d - return instruction is at address %p\n", KBUILD_MODNAME, current->pid,smp_processor_id(),overtick_count[i],regs->ip);
 
 			target = i;
 //			break;
@@ -218,24 +218,39 @@ overtick_APIC_interrupt:
 		overtick_count[target] -= 1;
 	}
 
-
 /*
-	auxiliary_stack_pointer = old_regs->sp;
-	auxiliary_stack_pointer--;
-	//printk("stack management information : reg->sp is %p - auxiliary sp is %p\n",regs->sp,auxiliary_stack_pointer);
-        copy_to_user((void*)auxiliary_stack_pointer,(void*)&old_regs->ip,8);	
-	auxiliary_stack_pointer--;
-        copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
-	auxiliary_stack_pointer--;
-        copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
-	//printk("stack management information : reg->sp is %p - auxiliary sp is %p - hitted objectr is %u - pgd descriptor is %u\n",regs->sp,auxiliary_stack_pointer,hitted_object,i);
-	old_regs->sp = auxiliary_stack_pointer;
-	old_regs->ip = callback[target];
+	if(callback[target] != NULL){
+		auxiliary_stack_pointer = old_regs->sp;
+		auxiliary_stack_pointer--;
+		//printk("stack management information : reg->sp is %p - auxiliary sp is %p\n",regs->sp,auxiliary_stack_pointer);
+       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&old_regs->ip,8);	
+		auxiliary_stack_pointer--;
+       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
+		auxiliary_stack_pointer--;
+       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
+		//printk("stack management information : reg->sp is %p - auxiliary sp is %p - hitted objectr is %u - pgd descriptor is %u\n",regs->sp,auxiliary_stack_pointer,hitted_object,i);
+		old_regs->sp = auxiliary_stack_pointer;
+		old_regs->ip = callback[target];
+	}
 */
-
         local_apic_timer_interrupt();
         my_irq_exit();
         set_irq_regs(old_regs);
+
+	if(callback[target] != NULL){
+		auxiliary_stack_pointer = regs->sp;
+		auxiliary_stack_pointer--;
+		//printk("stack management information : reg->sp is %p - auxiliary sp is %p\n",regs->sp,auxiliary_stack_pointer);
+       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&regs->ip,8);	
+		auxiliary_stack_pointer--;
+       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
+		auxiliary_stack_pointer--;
+       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
+		//printk("stack management information : reg->sp is %p - auxiliary sp is %p - hitted objectr is %u - pgd descriptor is %u\n",regs->sp,auxiliary_stack_pointer,hitted_object,i);
+		regs->sp = auxiliary_stack_pointer;
+		regs->ip = callback[target];
+	}
+
 	return;
 }
 
