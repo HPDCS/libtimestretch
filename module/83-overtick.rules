@@ -1,2 +1,0 @@
-# chardev device
-KERNEL=="timestretch", MODE="0644"
