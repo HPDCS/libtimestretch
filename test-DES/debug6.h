@@ -1,0 +1,11 @@
+/* #define DEBUG_SCHEDULING           78956 */ 
+/* #define DEBUG_SCHEDULING_SIMPLE    90956 */
+
+
+/* #define DEBUG_MAIN         987564 */
+  
+
+/* #define DEBUG_NEW_MESSAGE 	 	82893 */
+#define DEBUG_FLIT_ARRIVAL       	74299
+#define DEBUG_END_FLIT_TRANSMISSION     34526
+#define DEBUG_CHECK_SCHEDULING    	75878
