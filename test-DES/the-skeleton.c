@@ -32,6 +32,7 @@ void RegisterThread( void * arg){
                 printf("Thread %u registered\n",pthread_self());
 
                 if(register_callback(callback_entry) == TS_REGISTER_CALLBACK_OK){
+                //if(register_callback(NULL) == TS_REGISTER_CALLBACK_OK){
                         printf("Thread %u registered callback\n",pthread_self());
                 }
                 else{
@@ -71,16 +72,19 @@ int main(int argc, char**argv){
 	printf("usage: prog event-counter\n");
 	return -1;
    }
+
+
+
+   ret = ts_open();
+   if(ret != TS_OPEN_ERROR) {
+          printf("Device opened once.\n");
+   } else {
+          printf("Device open error.\n");
+   }
+
+   RegisterThread(NULL);
+
    initialize_event_list();
-
-	ret = ts_open();
-        if(ret != TS_OPEN_ERROR) {
-                   printf("Device opened once.\n");
-        } else {
-                    printf("Device open error.\n");
-       }
-
-
 	
    for(i=0;i<NUM_CENTERS;i++){
 	event.send_time = 0.0;
@@ -93,14 +97,18 @@ int main(int argc, char**argv){
 
    num_events = atoi(argv[1]);
 
+//RegisterThread(NULL);
    for(i=0;i<num_events;i++){
    	next(&current_event);
-	printf("schedule %d - event timestamp = %e\n",i,current_event.timestamp);
+//	printf("schedule %d - event timestamp = %e\n",i,current_event.timestamp);
 	last_time = current_event.timestamp;
-	RegisterThread(NULL);
+	//RegisterThread(NULL);
 	ProcessEvent(current_event);
-	DeregisterThread();
+	//DeregisterThread();
    }
-   printf("done all work - last time is %e\n",last_time);
+
+   DeregisterThread();
+   printf("done all work - last time is %e\n",last_time); 
+   audit();
  
 }

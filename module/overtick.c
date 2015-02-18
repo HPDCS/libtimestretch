@@ -68,6 +68,8 @@
 
 #define DEBUG if(1)
 
+#define OVERTICK_SCALING_FACTOR 8 //please set a multiple of 2
+
 static unsigned int stretch_flag[MAX_CPUs] = {[0 ... MAX_CPUs-1] 0}; 
 
 // These variables are set up by configure
@@ -166,6 +168,8 @@ void my_smp_apic_timer_interrupt(struct pt_regs* regs){
 
  	int i, target;
 	unsigned long * auxiliary_stack_pointer;
+	unsigned long flags;
+	unsigned int stretch_cycles;
 
         struct pt_regs *old_regs = set_irq_regs(regs);
 
@@ -200,8 +204,17 @@ void my_smp_apic_timer_interrupt(struct pt_regs* regs){
 			printk(KERN_INFO "%s: found APIC registered thread %d on CPU %d - overtick count is %d - return instruction is at address %p\n", KBUILD_MODNAME, current->pid,smp_processor_id(),overtick_count[i],regs->ip);
 
 			target = i;
-//			break;
 			goto overtick_APIC_interrupt;
+/*
+			if(regs->ip & 0xf000000000000000){//kernel mode running, no manipulaion of the stack frame needs to be done
+				DEBUG
+				printk(KERN_INFO "%s: APICinterrupt normal handling %p\n", KBUILD_MODNAME );
+				goto normal_APIC_interrupt;
+			}
+			else{
+				goto overtick_APIC_interrupt;
+			}
+*/
 		}	
 
 	} // end for
@@ -212,22 +225,32 @@ normal_APIC_interrupt:
 	local_apic_timer_interrupt();
 	my_irq_exit();
 	set_irq_regs(old_regs);
+	
+	if(stretch_flag[smp_processor_id()] == 1){
+		local_irq_save(flags);
+		stretch_flag[smp_processor_id()] = 0;
+		stretch_cycles = (*original_calibration) ; 
+ENABLE 		my__setup_APIC_LVTT(stretch_cycles, 0, 1);
+   		local_irq_restore(flags);
+	}
+
 	return;
 
 overtick_APIC_interrupt:
 
-	if(overtick_count[target] == 0){
-		 overtick_count[target] = 10;
+	if(overtick_count[target] <= 0){// '<' should be redundant
+		overtick_count[target] = OVERTICK_SCALING_FACTOR;
+        	local_apic_timer_interrupt();
 	}
 	else{
 		overtick_count[target] -= 1;
 	}
 
-        local_apic_timer_interrupt();
+        //local_apic_timer_interrupt();
         my_irq_exit();
         set_irq_regs(old_regs);
 
-	if(callback[target] != NULL){
+	if(callback[target] != NULL && !(regs->ip & 0xf000000000000000) ){//check 1) callback existence and 2) no kernel mode running upon APIC timer interrupt
 		auxiliary_stack_pointer = regs->sp;
 		auxiliary_stack_pointer--;
 		//printk("stack management information : reg->sp is %p - auxiliary sp is %p\n",regs->sp,auxiliary_stack_pointer);
@@ -240,6 +263,13 @@ overtick_APIC_interrupt:
 		regs->sp = auxiliary_stack_pointer;
 		regs->ip = callback[target];
 	}
+
+	local_irq_save(flags);
+	stretch_flag[smp_processor_id()] = 1;
+	stretch_cycles = (*original_calibration) / OVERTICK_SCALING_FACTOR; 
+ENABLE 	my__setup_APIC_LVTT(stretch_cycles, 0, 1);
+   	local_irq_restore(flags);
+
 
 	return;
 }
@@ -296,6 +326,8 @@ static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 	unsigned long fl;
 	int descriptor = -1;
 	int i;
+	unsigned long aux_flags;
+	unsigned int stretch_cycles;
 
 
 	switch (cmd) {
@@ -340,6 +372,15 @@ static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 			printk(KERN_INFO "%s: found registered thread entry %d - setting up callback at address %p\n", KBUILD_MODNAME, i, (void*)arg);
 
 			callback[i] = (void*)arg;
+			
+			if( arg != 0x0 ){
+				local_irq_save(aux_flags);
+				stretch_flag[smp_processor_id()] = 1;
+				stretch_cycles = (*original_calibration) / OVERTICK_SCALING_FACTOR; 
+ENABLE 				my__setup_APIC_LVTT(stretch_cycles, 0, 1);
+	       			local_irq_restore(aux_flags);
+			}
+		
 			ret = 0;
 //			break;
 			}	
@@ -402,7 +443,7 @@ end_register:
 		
 		if(ts_threads[arg] == current->pid){
 			ts_threads[arg]=-1;
-			callback[i]=NULL;
+			callback[arg]=NULL;
 		ret = 0;
 		} else {
 			ret = -EINVAL;
@@ -459,6 +500,16 @@ static void scheduler_hook(void) {
 			DEBUG
 			printk(KERN_INFO "%s: found TS thread %d on CPU %d\n", KBUILD_MODNAME, current->pid,smp_processor_id());
 
+			local_irq_save(flags);
+			stretch_flag[smp_processor_id()] = 1;
+			stretch_cycles = (*original_calibration) / OVERTICK_SCALING_FACTOR; 
+ENABLE 			my__setup_APIC_LVTT(stretch_cycles, 0, 1);
+	       		local_irq_restore(flags);
+
+			goto hook_end;
+
+/*
+	
 			if((control_buffer[i].user == 1)){ //this is a new standing request 
 
 				DEBUG
@@ -494,6 +545,7 @@ ENABLE 				my__setup_APIC_LVTT(stretch_cycles, 0, 1);
 			   last_passage[i] = 0;
 			   break;
 			} //this thread needs to be realigned to the original timer 
+*/
 
 		}	
 	
@@ -751,7 +803,7 @@ static int scheduler_patch(void) {
 	print_bytes("finish_task_switch_next after self patching", (unsigned char *)finish_task_switch_next - bytes_to_patch_in_scheduler, 64);
 
 	//patch the APIC top half interrupt
-	//~ memcpy(APIC_restore_addr, APIC_bytes_to_redirect, 5);
+	memcpy(APIC_restore_addr, APIC_bytes_to_redirect, 5);
 		
 	write_cr0(cr0);
 	
@@ -777,9 +829,9 @@ static void scheduler_unpatch(void) {
 	memcpy((char *)finish_task_switch_next - bytes_to_patch_in_scheduler, (char *)finish_task_switch_original_bytes, bytes_to_patch_in_scheduler);
 
 	// Here is for the APIC top half interrupt
-	//~ memcpy(APIC_restore_addr, APIC_bytes_to_restore, 5);
+	memcpy(APIC_restore_addr, APIC_bytes_to_restore, 5);
 	print_bytes("APIC patch: bytes restored for the call", APIC_restore_addr, 5);
-
+//
 	write_cr0(cr0);
 
 	printk(KERN_INFO "%s: standard scheduler correctly restored...\n", KBUILD_MODNAME);

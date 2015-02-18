@@ -38,4 +38,5 @@ callback_entry:
 	pop %rbx
 	pop %rax
 	leaveq
+	add $0x10, %rsp
 	retq

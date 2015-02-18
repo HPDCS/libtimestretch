@@ -2,13 +2,23 @@
 
 int counter = 46;
 
-static void ECS_stub(int ds, unsigned int hitted_object){
+void ECS_stub(long long ds, long long hitted_object){
 
+	counter--;
 	printf("ECS synch started on pgd %d - start wait for hitted object num %d by %d\n", ds, hitted_object, counter); 
+//	fflush(stdout);
+//	while(1);
 	
 } 
 
+void audit(void){
 
+	printf("ECS: counter audit is %d\n", counter); 
+
+
+}
+
+/*
 void overtick_callback(void) { // for now a simple printf of the cross-state dependency involved LP
 
 	unsigned long __id = -1;
@@ -55,6 +65,7 @@ void overtick_callback(void) { // for now a simple printf of the cross-state dep
 	__asm__ __volatile__("pop %rax");
 //	__asm__ __volatile__("addq $0x18 , %rsp ; popq %rbp ;  addq $0x8, %rsp ; retq");
 //	__asm__ __volatile__("addq $0x20 , %rsp ;  popq %rbp; addq $0x10 , %rsp ; retq");
-	__asm__ __volatile__("addq $0x28 , %rsp ; popq %rbx ; popq %rbp; addq $0x10 , %rsp ; retq"); // BUONA CON LA PRINTF
+//	__asm__ __volatile__("addq $0x28 , %rsp ; popq %rbx ; popq %rbp; addq $0x10 , %rsp ; retq"); // BUONA CON LA PRINTF
 //	__asm__ __volatile__("addq $0x50 , %rsp ; popq %rbx ; popq %rbp; addq $0x10 , %rsp ; retq"); // BUONA SENZA PRINTF
 }
+*/

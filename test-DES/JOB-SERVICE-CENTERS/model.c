@@ -15,6 +15,8 @@ struct _state state[NUM_CENTERS];
 
 int i;
 
+#define AUDIT if(0)
+
 #define DELAY_COUNT  200000
 #define DELAY for(i=0;i<DELAY_COUNT;i++); 
 
@@ -116,6 +118,7 @@ int ProcessEvent(msg_type msg){
 						state[target_center].served_jobs,
 						state[target_center].queued_jobs
 				);
+				AUDIT
 				audit_all();
 			};
 

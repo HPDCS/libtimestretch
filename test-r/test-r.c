@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <overtick.h>
 
-#define DELAY 5000000
+#define DELAY 5000000000
 
 pthread_t tid[CPU_CORES];
 
@@ -19,7 +19,10 @@ void* addr = 0xf0f0f0f;
 int ret;
 int dummy;
 
-extern void overtick_callback(void);
+//extern void overtick_callback(void);
+extern void callback_entry(void);
+extern void audit(void);
+
 
 void * RegisterThread( void * arg){
 
@@ -29,7 +32,7 @@ void * RegisterThread( void * arg){
 		printf("Thread %u registered\n",pthread_self());
 		//	sleep(1);
 
-		if(register_callback(overtick_callback) == TS_REGISTER_CALLBACK_OK){
+		if(register_callback(callback_entry) == TS_REGISTER_CALLBACK_OK){
 			printf("Thread %u registered callback\n",pthread_self());
 		}
 		else{
@@ -106,6 +109,9 @@ int main(int argc, char **argv) {
 
 	sleep(3);
 	//ts_close();	
+
+	audit();
+	
 
 	return 0;
 }

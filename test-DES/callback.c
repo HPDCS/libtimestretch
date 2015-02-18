@@ -1,11 +1,11 @@
 #include <stdio.h>
 
-int counter = 0;
+int callback_counter = 0;
 
 void ECS_stub(long long A, long long B){
 
-	counter++;
-	printf("overtick interrupt - params are %d - %d  -- counter is %d\n", A, B, counter); 
+	callback_counter++;
+//	printf("overtick interrupt - params are %d - %d  -- counter is %d\n", A, B, callback_counter); 
 //	fflush(stdout);
 //	while(1);
 	
@@ -13,7 +13,7 @@ void ECS_stub(long long A, long long B){
 
 void audit(void){
 
-	printf("ECS: counter audit is %d\n", counter); 
+	printf("ECS: counter audit is %d\n", callback_counter); 
 
 
 }

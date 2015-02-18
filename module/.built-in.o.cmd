@@ -1,1 +1,0 @@
-cmd_/home/francesco/kernel-modules/libtimestretch/module/built-in.o :=  rm -f /home/francesco/kernel-modules/libtimestretch/module/built-in.o; ar rcsD /home/francesco/kernel-modules/libtimestretch/module/built-in.o
