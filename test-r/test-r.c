@@ -9,14 +9,17 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <timestretch.h>
+#include <overtick.h>
 
-#define DELAY 500000000
+#define DELAY 5000000
 
 pthread_t tid[CPU_CORES];
 
+void* addr = 0xf0f0f0f;
 int ret;
 int dummy;
+
+extern void overtick_callback(void);
 
 void * RegisterThread( void * arg){
 
@@ -24,7 +27,17 @@ void * RegisterThread( void * arg){
 	
 	if(register_ts_thread() == TS_REGISTER_OK){ 
 		printf("Thread %u registered\n",pthread_self());
-		sleep(3);
+		//	sleep(1);
+
+		if(register_callback(overtick_callback) == TS_REGISTER_CALLBACK_OK){
+			printf("Thread %u registered callback\n",pthread_self());
+		}
+		else{
+			printf("Thread %u register callback error\n",pthread_self());
+		}
+
+		for (i=0; i<DELAY; i++);
+
 		if(deregister_ts_thread() == TS_DEREGISTER_OK){ 
 			printf("Thread %u deregistered\n",pthread_self());
 		}
@@ -91,34 +104,8 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	sleep(5);
-
+	sleep(3);
 	//ts_close();	
-
-/*
-
-	if(CPU_CORES == 1){
-
-		BusyLoopThread(NULL);
-
-
-	if(CPU_CORES == 1){
-
-		BusyLoopThread(NULL);
-		return 0;
-	}
-
-	for (i=0;i<CPU_CORES;i++){
-		a = pthread_create((tid+i), NULL, BusyLoopThread, NULL );
-		if (a){
-     		 printf("cannot create thread for error %d\n", i);
-      		 exit(-1);
-      		}
-	}
-	for (i=0;i<CPU_CORES;i++){
-		pthread_join(tid[i], &status);	
-	}
-*/
 
 	return 0;
 }
