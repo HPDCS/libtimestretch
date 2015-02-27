@@ -22,18 +22,19 @@ extern void audit(void);
 double last_time;
 
 
-
+int k;
+#define LOOP for(k=0;k<2000000;k++)
 
 void RegisterThread( void * arg){
 
         int i;
 
         if(register_ts_thread() == TS_REGISTER_OK){
-                printf("Thread %u registered\n",pthread_self());
+ //               printf("Thread %u registered\n",pthread_self());
 
                 if(register_callback(callback_entry) == TS_REGISTER_CALLBACK_OK){
                 //if(register_callback(NULL) == TS_REGISTER_CALLBACK_OK){
-                        printf("Thread %u registered callback\n",pthread_self());
+//                        printf("Thread %u registered callback\n",pthread_self());
                 }
                 else{
                         printf("Thread %u register callback error\n",pthread_self());
@@ -47,7 +48,7 @@ void RegisterThread( void * arg){
 void DeregisterThread(){
 
                 if(deregister_ts_thread() == TS_DEREGISTER_OK){
-                        printf("Thread %u deregistered\n",pthread_self());
+  //                      printf("Thread %u deregistered\n",pthread_self());
                 }
                 else{
                         printf("Thread %u deregister error\n",pthread_self());
@@ -77,34 +78,24 @@ int main(int argc, char**argv){
 
    ret = ts_open();
    if(ret != TS_OPEN_ERROR) {
-          printf("Device opened once.\n");
+//          printf("Device opened once.\n");
    } else {
           printf("Device open error.\n");
    }
 
    RegisterThread(NULL);
 
-   initialize_event_list();
-	
-   for(i=0;i<NUM_CENTERS;i++){
-	event.send_time = 0.0;
-	event.timestamp = 0.0 + 0.01*i;
-	event.type = INIT;
-	event.sender = i;
-	event.receiver = i;
-   	insert(event);
-   }
-
    num_events = atoi(argv[1]);
 
 //RegisterThread(NULL);
    for(i=0;i<num_events;i++){
-   	next(&current_event);
+//   	next(&current_event);
 //	printf("schedule %d - event timestamp = %e\n",i,current_event.timestamp);
-	last_time = current_event.timestamp;
-	RegisterThread(NULL);
-	ProcessEvent(current_event);
-	DeregisterThread();
+//	last_time = current_event.timestamp;
+//	RegisterThread(NULL);
+//	ProcessEvent(current_event);
+   	LOOP;
+//	DeregisterThread();
    }
 
    DeregisterThread();
