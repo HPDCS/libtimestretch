@@ -106,6 +106,26 @@ int deregister_ts_thread(void) {
 
 }
 
+int register_callback(void* addr) {
+	int ret;
+
+	//printf("library has been called\n");
+
+	if (lookup.me != getpid()){
+		return TS_REGISTER_CALLBACK_ERROR;
+	}
+	
+	ret = ioctl(fd, IOCTL_SETUP_CALLBACK, addr);
+
+	if (ret == -1){
+		return TS_REGISTER_CALLBACK_ERROR;
+	}
+
+
+	return TS_REGISTER_CALLBACK_OK;
+
+}
+
 int ts_start(unsigned int millisec) {
 
 	if(lookup.me == -1){

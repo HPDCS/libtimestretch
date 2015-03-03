@@ -9,7 +9,7 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <overtick.h>
+#include <timestretch.h>
 
 #define DELAY 5000000000
 

@@ -4,7 +4,7 @@
 #include <signal.h>
 #include <malloc.h>
 
-#include <overtick.h>
+#include <timestretch.h>
 
 
 #include "eventlist.h"

@@ -62,5 +62,6 @@ typedef struct _map {
 #define IOCTL_REGISTER_THREAD _IOW(TSTRETCH_IOCTL_MAGIC, 0 , unsigned long) 
 #define IOCTL_DEREGISTER_THREAD _IOW(TSTRETCH_IOCTL_MAGIC, 1, unsigned long ) 
 #define IOCTL_SETUP_BUFFER _IOW(TSTRETCH_IOCTL_MAGIC, 2, unsigned long ) 
+#define IOCTL_SETUP_CALLBACK _IOW(TSTRETCH_IOCTL_MAGIC, 3, unsigned long ) 
 
 #endif /* __KERNEL_TIME_SLICE_STRETCH */
