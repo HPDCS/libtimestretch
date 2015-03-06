@@ -69,7 +69,7 @@
 #define DEBUG if(0)
 #define DEBUG_APIC if(0)
 
-#define OVERTICK_SCALING_FACTOR 10 //please set a multiple of 2
+#define OVERTICK_SCALING_FACTOR 5 //please set a multiple of 2
 #define OVERTICK_COMPENSATION_FACTOR (OVERTICK_SCALING_FACTOR / 2)//give at least twice overtick-time for APIC interrupts occurring in kernle mode 
 #define COMPENSATE ((OVERTICK_SCALING_FACTOR / OVERTICK_COMPENSATION_FACTOR) - 1)
 
@@ -168,10 +168,10 @@ int enabled_registering = 0;
 
 int apic_interrupt_watch_dog= 0;
  
-void my_smp_apic_timer_interrupt(struct pt_regs* regs){
+void my_smp_apic_timer_interrupt(struct pt_regs* regs) {
 
  	int i, target;
-	unsigned long * auxiliary_stack_pointer;
+	unsigned long auxiliary_stack_pointer;
 	unsigned long flags;
 	unsigned int stretch_cycles;
 
@@ -250,20 +250,26 @@ overtick_APIC_interrupt:
         my_irq_exit();
         set_irq_regs(old_regs);
 
-	if((regs->ip & 0xf000000000000000) ){//interrupted while in kernel mode running
+//	printk("%p\n", old_regs);
+
+	if( old_regs != NULL ){//interrupted while in kernel mode running
+		goto overtick_APIC_interrupt_kernel_mode;
+	}
+
+	if((regs->ip & 0xf000000000000000 || regs->ip >= 0x7f0000000000) ){//interrupted while in kernel mode running
 
 		goto overtick_APIC_interrupt_kernel_mode;
 	}
 
 	if(callback[target] != NULL && !(regs->ip & 0xf000000000000000) ){//check 1) callback existence and 2) no kernel mode running upon APIC timer interrupt
 		auxiliary_stack_pointer = regs->sp;
-		auxiliary_stack_pointer--;
+		auxiliary_stack_pointer -= 8;
 		//printk("stack management information : reg->sp is %p - auxiliary sp is %p\n",regs->sp,auxiliary_stack_pointer);
-       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&regs->ip,8);	
-		auxiliary_stack_pointer--;
-       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
-		auxiliary_stack_pointer--;
-       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
+       	 	copy_to_user((void *)auxiliary_stack_pointer,(void *)&regs->ip, 8);	
+//		auxiliary_stack_pointer--;
+//       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
+//		auxiliary_stack_pointer--;
+ //      	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
 		//printk("stack management information : reg->sp is %p - auxiliary sp is %p - hitted objectr is %u - pgd descriptor is %u\n",regs->sp,auxiliary_stack_pointer,hitted_object,i);
 		regs->sp = auxiliary_stack_pointer;
 		regs->ip = callback[target];

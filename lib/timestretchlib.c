@@ -153,3 +153,11 @@ int ts_end(void) {
 	return TS_END_OK;
 
 }
+
+
+void return_from_kernel(void) {
+	printf(".");
+
+	buff[lookup.ts_id].user++;
+}
+

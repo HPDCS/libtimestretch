@@ -54,6 +54,7 @@ int deregister_ts_thread(void);
 int ts_start(unsigned int millisec);
 int ts_end(void);
 int register_callback(void* addr);
+void return_from_kernel(void);
 
 
 #endif /* _TIMESTRETCH_LIB */
