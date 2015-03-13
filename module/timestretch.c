@@ -69,7 +69,7 @@
 #define DEBUG if(0)
 #define DEBUG_APIC if(0)
 
-#define OVERTICK_SCALING_FACTOR 5 //please set a multiple of 2
+#define OVERTICK_SCALING_FACTOR 10 //please set a multiple of 2
 #define OVERTICK_COMPENSATION_FACTOR (OVERTICK_SCALING_FACTOR / 2)//give at least twice overtick-time for APIC interrupts occurring in kernle mode 
 #define COMPENSATE ((OVERTICK_SCALING_FACTOR / OVERTICK_COMPENSATION_FACTOR) - 1)
 
@@ -193,12 +193,12 @@ void my_smp_apic_timer_interrupt(struct pt_regs* regs) {
 	my_irq_enter();
 	my_exit_idle();
 
-	apic_interrupt_watch_dog++;//no problem if we do not perform this atomically, its just a periodic audit
+/*	apic_interrupt_watch_dog++;//no problem if we do not perform this atomically, its just a periodic audit
 	if (apic_interrupt_watch_dog >= 0x000000000000ffff){
 		printk(KERN_DEBUG "%s: watch dog trigger for smp apic timer interrrupt %d CPU-id is %d\n", KBUILD_MODNAME, current->pid, smp_processor_id());
 		apic_interrupt_watch_dog = 0;
 	}
-
+*/
 	if(current->mm == NULL) goto normal_APIC_interrupt;  /* this is a kernel thread */
 
 	//for normal (non-overtick) scenarios we only pay the extra cost of the below cycle
@@ -250,8 +250,6 @@ overtick_APIC_interrupt:
         my_irq_exit();
         set_irq_regs(old_regs);
 
-//	printk("%p\n", old_regs);
-
 	if( old_regs != NULL ){//interrupted while in kernel mode running
 		goto overtick_APIC_interrupt_kernel_mode;
 	}
@@ -262,10 +260,11 @@ overtick_APIC_interrupt:
 	}
 
 	if(callback[target] != NULL && !(regs->ip & 0xf000000000000000) ){//check 1) callback existence and 2) no kernel mode running upon APIC timer interrupt
+
 		auxiliary_stack_pointer = regs->sp;
-		auxiliary_stack_pointer -= 8;
+		auxiliary_stack_pointer -= sizeof(regs->ip);
 		//printk("stack management information : reg->sp is %p - auxiliary sp is %p\n",regs->sp,auxiliary_stack_pointer);
-       	 	copy_to_user((void *)auxiliary_stack_pointer,(void *)&regs->ip, 8);	
+       	 	copy_to_user((void *)auxiliary_stack_pointer,(void *)&regs->ip, sizeof(regs->ip));	
 //		auxiliary_stack_pointer--;
 //       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
 //		auxiliary_stack_pointer--;

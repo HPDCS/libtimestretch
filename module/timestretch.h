@@ -38,7 +38,7 @@
 #define DELAY 1000
 #define ENABLE if(1)
 #define MAX_CPUs 32
-#define TS_THREADS 16 //max number of concurrent HTM threads with time stretch
+#define TS_THREADS 32 //max number of concurrent HTM threads with time stretch
 
 typedef struct _ioctl_info {
 	int ds;
@@ -57,7 +57,7 @@ typedef struct _map {
         int ts_id;
 } map;
 
-#define HTM_THREADS 16 // max number of concurrent threads rnning HTM transactions with timer stretch
+#define HTM_THREADS TS_THREADS // max number of concurrent threads rnning HTM transactions with timer stretch
 
 #define IOCTL_REGISTER_THREAD _IOW(TSTRETCH_IOCTL_MAGIC, 0 , unsigned long) 
 #define IOCTL_DEREGISTER_THREAD _IOW(TSTRETCH_IOCTL_MAGIC, 1, unsigned long ) 
