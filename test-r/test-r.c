@@ -9,9 +9,9 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <timestretch.h>
+#include <overtick.h>
 
-#define DELAY 5000000000
+#define DELAY 10000000
 
 pthread_t tid[CPU_CORES];
 
@@ -24,12 +24,16 @@ extern void callback_entry(void);
 extern void audit(void);
 
 
-void * RegisterThread( void * arg){
+void *RegisterThread(void *arg){
 
-	int i;
+	int i,j;
+	char *p;
+	unsigned me;
+	char c[200];
 	
 	if(register_ts_thread() == TS_REGISTER_OK){ 
-		printf("Thread %u registered\n",pthread_self());
+		printf("Thread %u registered\n",me=pthread_self());
+		fflush(stdout);
 		//	sleep(1);
 
 		if(register_callback(callback_entry) == TS_REGISTER_CALLBACK_OK){
@@ -39,7 +43,22 @@ void * RegisterThread( void * arg){
 			printf("Thread %u register callback error\n",pthread_self());
 		}
 
-		for (i=0; i<DELAY; i++);
+
+		for (j=0; j<200; j++){
+		 for (i=0; i<DELAY; i++);
+
+			printf("hello world %d times from %u\n",j,me);
+			fflush(stdout);
+
+			p = malloc(128);
+			if (p) {
+				sprintf(p,"hello world %d times\n",j);
+				//printf("hello world %d times\n",i);
+				//fflush(stdout);
+			}
+
+		}
+
 
 		if(deregister_ts_thread() == TS_DEREGISTER_OK){ 
 			printf("Thread %u deregistered\n",pthread_self());
@@ -107,7 +126,8 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	sleep(3);
+//	pause();
+	sleep(12);
 	//ts_close();	
 
 	audit();

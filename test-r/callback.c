@@ -5,7 +5,7 @@ int counter = 46;
 void ECS_stub(long long ds, long long hitted_object){
 
 	counter--;
-	printf("ECS synch started on pgd %d - start wait for hitted object num %d by %d\n", ds, hitted_object, counter); 
+//	printf("ECS synch started on pgd %d - start wait for hitted object num %d by %d\n", ds, hitted_object, counter); 
 //	fflush(stdout);
 //	while(1);
 	

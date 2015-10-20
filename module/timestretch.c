@@ -66,7 +66,7 @@
 #error Unsupported Kernel Version
 #endif
 
-#define DEBUG if(0)
+#define DEBUG if(1)
 #define DEBUG_APIC if(0)
 
 #define OVERTICK_SCALING_FACTOR 10 //please set a multiple of 2
@@ -220,8 +220,9 @@ normal_APIC_interrupt:
 	if(stretch_flag[smp_processor_id()] == 0 || CPU_overticks[smp_processor_id()]<=0){
 		local_apic_timer_interrupt();
 	}
-	my_irq_exit();
-	set_irq_regs(old_regs);
+//these were here before moving to the end of this execution path
+//	my_irq_exit();
+//	set_irq_regs(old_regs);
 	
 
 	//again - no additional cost (except for the predicate evaluation) in non-overtick scenarios
@@ -233,6 +234,9 @@ normal_APIC_interrupt:
 ENABLE 		my__setup_APIC_LVTT(stretch_cycles, 0, 1);
    		local_irq_restore(flags);
 	}
+
+	my_irq_exit();
+	set_irq_regs(old_regs);
 
 	return;
 
@@ -247,8 +251,9 @@ overtick_APIC_interrupt:
 		CPU_overticks[smp_processor_id()] -= 1;
 	}
 
-        my_irq_exit();
-        set_irq_regs(old_regs);
+//these wehre her before shifting to the end of the execuion path
+ //       my_irq_exit();
+  //      set_irq_regs(old_regs);
 
 	if( old_regs != NULL ){//interrupted while in kernel mode running
 		goto overtick_APIC_interrupt_kernel_mode;
@@ -281,6 +286,9 @@ overtick_APIC_interrupt_kernel_mode:
 	stretch_cycles = (*original_calibration) / OVERTICK_SCALING_FACTOR; 
 ENABLE 	my__setup_APIC_LVTT(stretch_cycles, 0, 1);
    	local_irq_restore(flags);
+
+        my_irq_exit();
+        set_irq_regs(old_regs);
 
 	return;
 

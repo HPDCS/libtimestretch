@@ -1,7 +1,7 @@
 #try pass NCORES = the number of threads you wich to run in the example code
 #the cpu consumer is compiled ignoring this value except if FLAGS is added to the compilatio line of this module
 
-OBJ_DIR=../
+OBJ_DIR=../lib/
 ifndef NCORES
 	FLAGS = -D CPU_CORES=1
 else
