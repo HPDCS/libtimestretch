@@ -66,7 +66,7 @@
 #error Unsupported Kernel Version
 #endif
 
-#define DEBUG if(1)
+#define DEBUG if(0)
 #define DEBUG_APIC if(0)
 
 #define OVERTICK_SCALING_FACTOR 10 //please set a multiple of 2
@@ -118,7 +118,7 @@ static int scheduler_patch(void);
 static void print_bytes(char *str, unsigned char *ptr, size_t s);
 static int check_patch_compatibility(void);
 static void scheduler_hook(void);
-static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
+static long time_stretch_ioctl(struct file *filp, unsigned int cmd, void *arg);
 int time_stretch_release(struct inode *inode, struct file *filp);
 int time_stretch_open(struct inode *inode, struct file *filp);
 void timer_reset(void*);
@@ -133,7 +133,7 @@ module_exit(time_stretch_cleanup);
 /* MODULE VARIABLES */
 static DEFINE_MUTEX(ts_thread_register);
 static int ts_threads[TS_THREADS]={[0 ... (TS_THREADS-1)] = -1};
-static int last_passage[TS_THREADS]={[0 ... (TS_THREADS-1)] = 0};
+static unsigned long long last_passage[TS_THREADS]={[0 ... (TS_THREADS-1)] = 0x0};
 
 static unsigned int overtick_count[TS_THREADS]={[0 ... (TS_THREADS-1)] = 0};
 static unsigned long callback[TS_THREADS]={[0 ... (TS_THREADS-1)] = 0x0};
@@ -259,24 +259,33 @@ overtick_APIC_interrupt:
 		goto overtick_APIC_interrupt_kernel_mode;
 	}
 
-	if((regs->ip & 0xf000000000000000 || regs->ip >= 0x7f0000000000) ){//interrupted while in kernel mode running
+	//if((regs->ip & 0xf000000000000000 || regs->ip >= 0x7f0000000000) ){//interrupted while in kernel mode running
+	if((regs->ip & 0xf000000000000000 || regs->ip >= 0x7f00000) ){//interrupted while in kernel mode running
 
 		goto overtick_APIC_interrupt_kernel_mode;
 	}
 
 	if(callback[target] != NULL && !(regs->ip & 0xf000000000000000) ){//check 1) callback existence and 2) no kernel mode running upon APIC timer interrupt
 
-		auxiliary_stack_pointer = regs->sp;
-		auxiliary_stack_pointer -= sizeof(regs->ip);
-		//printk("stack management information : reg->sp is %p - auxiliary sp is %p\n",regs->sp,auxiliary_stack_pointer);
-       	 	copy_to_user((void *)auxiliary_stack_pointer,(void *)&regs->ip, sizeof(regs->ip));	
-//		auxiliary_stack_pointer--;
-//       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
-//		auxiliary_stack_pointer--;
- //      	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
-		//printk("stack management information : reg->sp is %p - auxiliary sp is %p - hitted objectr is %u - pgd descriptor is %u\n",regs->sp,auxiliary_stack_pointer,hitted_object,i);
-		regs->sp = auxiliary_stack_pointer;
-		regs->ip = callback[target];
+	local_irq_save(flags);
+		if(regs->ip != callback[target]) {
+
+
+
+			//printk("target callback address is %p\n",callback[target]);
+			auxiliary_stack_pointer = regs->sp;
+			auxiliary_stack_pointer -= sizeof(regs->ip);
+			//printk("stack management information : reg->sp is %p - auxiliary sp is %p\n",regs->sp,auxiliary_stack_pointer);
+	       	 	copy_to_user((void *)auxiliary_stack_pointer,(void *)&regs->ip, sizeof(regs->ip));	
+	//		auxiliary_stack_pointer--;
+	//       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
+	//		auxiliary_stack_pointer--;
+	 //      	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
+			//printk("stack management information : reg->sp is %p - auxiliary sp is %p - hitted objectr is %u - pgd descriptor is %u\n",regs->sp,auxiliary_stack_pointer,hitted_object,i);
+			regs->sp = auxiliary_stack_pointer;
+			regs->ip = callback[target];
+		}
+   	local_irq_restore(flags);
 	}
 
 overtick_APIC_interrupt_kernel_mode:
@@ -336,7 +345,11 @@ int time_stretch_release(struct inode *inode, struct file *filp) {
 	}
 
 	for (i = 0; i < TS_THREADS; i++) {
-		 last_passage[i] = 0;
+		 last_passage[i] = 0x0;
+	}
+
+	for (i = 0; i < TS_THREADS; i++) {
+		 callback[i] = 0x0;
 	}
 
 	enabled_registering = 0;
@@ -353,7 +366,7 @@ int time_stretch_release(struct inode *inode, struct file *filp) {
 }
 
 
-static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
+static long time_stretch_ioctl(struct file *filp, unsigned int cmd, void *arg) {
 
 	int ret = 0;
 	unsigned long fl;
@@ -365,7 +378,7 @@ static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 
 	switch (cmd) {
 
- 	case IOCTL_SETUP_BUFFER:
+/* 	case IOCTL_SETUP_BUFFER:
 		control_buffer = (flags *)arg;
 		printk(KERN_DEBUG "%s: control buffer setup at address %p\n", KBUILD_MODNAME, control_buffer);
 
@@ -393,7 +406,7 @@ static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 
 		break;
 
-
+*/
  	case IOCTL_SETUP_CALLBACK:
 
 		ret = -1;
@@ -404,7 +417,7 @@ static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 			DEBUG
 			printk(KERN_INFO "%s: found registered thread entry %d - setting up callback at address %p\n", KBUILD_MODNAME, i, (void*)arg);
 
-			callback[i] = (void*)arg;
+			callback[i] = arg;
 			
 			if( arg != 0x0 ){
 				local_irq_save(aux_flags);
@@ -474,9 +487,9 @@ end_register:
 		
 		mutex_lock(&ts_thread_register);
 		
-		if(ts_threads[arg] == current->pid){
-			ts_threads[arg]=-1;
-			callback[arg]=NULL;
+		if(ts_threads[(unsigned int)arg] == current->pid){
+			ts_threads[(unsigned int)arg]=-1;
+			callback[(unsigned int)arg]=NULL;
 		ret = 0;
 		} else {
 			ret = -EINVAL;
