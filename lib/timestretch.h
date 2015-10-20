@@ -45,11 +45,16 @@
 #define TS_END_OK    -6
 #define TS_END_ERROR -6
 
+#define TS_REGISTER_CALLBACK_OK     7
+#define TS_REGISTER_CALLBACK_ERROR -7
+
 int ts_open(void);
 int register_ts_thread(void);
 int deregister_ts_thread(void);
 int ts_start(unsigned int millisec);
 int ts_end(void);
+int register_callback(void* addr);
+void return_from_kernel(void);
 
 
 #endif /* _TIMESTRETCH_LIB */

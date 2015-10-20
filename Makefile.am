@@ -2,8 +2,7 @@ ACLOCAL_AMFLAGS = -I m4
 AM_CPPFLAGS = -I$(abs_top_srcdir)
 EXTRA_DIST = COPYING INSTALL README \
 	     module/Makefile module/timestretch.c module/timestretch.h module/83-timestretch.rules \
-             lib/timestretchlib.c lib/timestretch.h \
-	     test/example.c test/cpu-consumer.c
+             lib/timestretchlib.c lib/timestretch.h 
 
 udevdir = /etc/udev/rules.d
 initdir = @sysconfdir@/init.d
@@ -19,9 +18,14 @@ module/timestretch.ko: module/timestretch.c
 	test -f $(builddir)/module/Makefile || $(LN_S) $(abs_top_srcdir)/module/Makefile $(builddir)/module/
 	test -f $(builddir)/module/timestretch.c || $(LN_S) $(abs_top_srcdir)/module/timestretch.c $(builddir)/module/
 	test -f $(builddir)/module/timestretch.h || $(LN_S) $(abs_top_srcdir)/module/timestretch.h $(builddir)/module/
-	$(MAKE) -C $(KERNEL_SRC) M=$(abs_top_builddir)/module EXTRA_CFLAGS="-DORIGINAL_CALIBRATION=$(ORIGINAL_CALIBRATION) \
+	$(MAKE) -C $(KERNEL_SRC) M=$(abs_top_builddir)/module EXTRA_CFLAGS="-Wall \
+									    -DORIGINAL_CALIBRATION=$(ORIGINAL_CALIBRATION) \
 									    -DSETUP_APIC_LVTT=$(SETUP_APIC_LVTT) -DKERNEL_HZ=$(KERNEL_HZ) \
-									    -DFTS_ADDR=$(FTS_ADDR) -DFTS_ADDR_NEXT=$(FTS_ADDR_NEXT)"
+									    -DFTS_ADDR=$(FTS_ADDR) -DFTS_ADDR_NEXT=$(FTS_ADDR_NEXT)\
+									    -DAPIC_TIMER_INTERRUPT=$(APIC_TIMER_INTERRUPT)\
+									    -DLOCAL_APIC_TIMER_INTERRUPT=$(LOCAL_APIC_TIMER_INTERRUPT)\
+									    -DEXIT_IDLE=$(EXIT_IDLE) -DIRQ_ENTER=$(IRQ_ENTER)\
+									    -DIRQ_EXIT=$(IRQ_EXIT)"
 all-local: module/timestretch.ko
 
 install-exec-hook: module/timestretch.ko

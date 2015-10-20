@@ -34,14 +34,14 @@
 
 
 
-int fd = -1;
-int ret = 0;
+static int fd = -1;
+static int ret = 0;
 
 
-flags buff[TS_THREADS] = {[0 ... TS_THREADS-1] {0,0,0}};
+//flags buff[TS_THREADS] = {[0 ... TS_THREADS-1] {0,0,0}};
 
-__thread int pid;
-__thread map lookup = {-1,-1}; 
+static __thread int pid;
+static __thread map lookup = {-1,-1};
 
 int ts_open(void) {
 
@@ -57,11 +57,11 @@ int ts_open(void) {
 	return TS_OPEN_ERROR;
   }
 
-  ret = ioctl(fd, IOCTL_SETUP_BUFFER,buff);
-  if (ret == -1) {
-	close(fd);
-	return TS_OPEN_ERROR;
-  }
+//  ret = ioctl(fd, IOCTL_SETUP_BUFFER,buff);
+//  if (ret == -1) {
+//	close(fd);
+//	return TS_OPEN_ERROR;
+//  }
 
   return TS_OPEN_OK;
 }
@@ -75,7 +75,7 @@ int register_ts_thread(void) {
 		return TS_REGISTER_ERROR;
   	}
 
-	ret = ioctl(fd, IOCTL_REGISTER_THREAD,&buff);
+	ret = ioctl(fd, IOCTL_REGISTER_THREAD);
   	if (ret == -1) {
 		return TS_REGISTER_ERROR;
   	}
@@ -106,6 +106,27 @@ int deregister_ts_thread(void) {
 
 }
 
+int register_callback(void* addr) {
+	int ret;
+
+	//printf("library has been called\n");
+
+	if (lookup.me != getpid()){
+		return TS_REGISTER_CALLBACK_ERROR;
+	}
+	
+	ret = ioctl(fd, IOCTL_SETUP_CALLBACK, addr);
+
+	if (ret == -1){
+		return TS_REGISTER_CALLBACK_ERROR;
+	}
+
+
+	return TS_REGISTER_CALLBACK_OK;
+
+}
+
+/*
 int ts_start(unsigned int millisec) {
 
 	if(lookup.me == -1){
@@ -133,3 +154,12 @@ int ts_end(void) {
 	return TS_END_OK;
 
 }
+*/
+/*
+void return_from_kernel(void) {
+	printf(".");
+
+	buff[lookup.ts_id].user++;
+}
+*/
+

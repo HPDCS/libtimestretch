@@ -1,47 +1,43 @@
-# Windows image file caches
-Thumbs.db
-ehthumbs.db
+*.1
+*.a
+*.ko.cmd
+*.mod
+*.mod.c
+*.o
+*.o.cmd
+*.ko
+*.a
+*.la
+*.lo
+*.so
+*.so.*
+*.dylib
+*.out
+*.Po
+*.order
+*.symvers
 
-# Folder config file
-Desktop.ini
+Makefile
+Makefile.in
 
-# Recycle Bin used on file shares
-$RECYCLE.BIN/
+/aclocal.m4
+/autom4te.cache/
+/config.*
+/configure
+/compile
+/depcomp
+/install-sh
+/libtool
+/ltmain.sh
+ltoptions.m4
+ltsugar.m4
+ltversion.m4
+lt~obsolete.m4
 
-# Windows Installer files
-*.cab
-*.msi
-*.msm
-*.msp
-
-# =========================
-# Operating System Files
-# =========================
-
-# OSX
-# =========================
-
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Icon must end with two \r
-Icon
-
-# Thumbnails
-._*
-
-# Files that might appear on external disk
-.Spotlight-V100
-.Trashes
-
-# Directories potentially created on remote AFP share
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
-
-lib/timestretchlib.c.bak
-module/timestretch.c.bak
-module/timestretch.h.bak
+/missing
+/stamp-h?
+.deps/
+.dirstamp
+.libs/
+*.l[ao]
+*~

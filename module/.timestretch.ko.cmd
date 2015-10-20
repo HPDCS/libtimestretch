@@ -1,1 +1,0 @@
-cmd_/home/francesco/kernel-modules/libtimestretch/module/timestretch.ko := ld -r -m elf_x86_64 -T /usr/src/linux-3.16.7-7/scripts/module-common.lds --build-id  -o /home/francesco/kernel-modules/libtimestretch/module/timestretch.ko /home/francesco/kernel-modules/libtimestretch/module/timestretch.o /home/francesco/kernel-modules/libtimestretch/module/timestretch.mod.o

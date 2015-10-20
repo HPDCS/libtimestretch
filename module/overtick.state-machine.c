@@ -60,16 +60,15 @@
 #endif
 
 
-#include "timestretch.h"
+#include "overtick.h"
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,25)
 #error Unsupported Kernel Version
 #endif
 
 #define DEBUG if(1)
-#define DEBUG_APIC if(0)
 
-#define OVERTICK_SCALING_FACTOR 10 //please set a multiple of 2
+#define OVERTICK_SCALING_FACTOR 1 //please set a multiple of 2
 #define OVERTICK_COMPENSATION_FACTOR (OVERTICK_SCALING_FACTOR / 2)//give at least twice overtick-time for APIC interrupts occurring in kernle mode 
 #define COMPENSATE ((OVERTICK_SCALING_FACTOR / OVERTICK_COMPENSATION_FACTOR) - 1)
 
@@ -168,10 +167,10 @@ int enabled_registering = 0;
 
 int apic_interrupt_watch_dog= 0;
  
-void my_smp_apic_timer_interrupt(struct pt_regs* regs) {
+void my_smp_apic_timer_interrupt(struct pt_regs* regs){
 
  	int i, target;
-	unsigned long auxiliary_stack_pointer;
+	unsigned long * auxiliary_stack_pointer;
 	unsigned long flags;
 	unsigned int stretch_cycles;
 
@@ -193,57 +192,46 @@ void my_smp_apic_timer_interrupt(struct pt_regs* regs) {
 	my_irq_enter();
 	my_exit_idle();
 
-/*	apic_interrupt_watch_dog++;//no problem if we do not perform this atomically, its just a periodic audit
-	if (apic_interrupt_watch_dog >= 0x000000000000ffff){
+	apic_interrupt_watch_dog++;//no problem if we do not perform this atomically, its just a periodic audit
+	if (apic_interrupt_watch_dog >= 0x00000000000000ff){
 		printk(KERN_DEBUG "%s: watch dog trigger for smp apic timer interrrupt %d CPU-id is %d\n", KBUILD_MODNAME, current->pid, smp_processor_id());
 		apic_interrupt_watch_dog = 0;
 	}
-*/
+
 	if(current->mm == NULL) goto normal_APIC_interrupt;  /* this is a kernel thread */
 
-	//for normal (non-overtick) scenarios we only pay the extra cost of the below cycle
-	for(i = 0; i < TS_THREADS; i++){
 
-		if(ts_threads[i] == current->pid){
-			DEBUG_APIC
-			printk(KERN_INFO "%s: found APIC registered thread %d on CPU %d - overtick count is %d - return instruction is at address %p\n", KBUILD_MODNAME, current->pid,smp_processor_id(),overtick_count[i],regs->ip);
+        //case of overtick on the current CPU-core - non-kernel thread
+        if( stretch_flag[smp_processor_id()] == 1 ){
 
-			target = i;
-			goto overtick_APIC_interrupt;
-		}	
+        	//need to discrimimate whether the interrupted thread was user or kernel mode running
+		if( !(regs->ip & 0xf000000000000000) ){//interrupted while in kernel user running
 
-	} // end for
+			goto overtick_APIC_interrupt_user_mode;
+		}
+		else{
+			goto overtick_APIC_interrupt_kernel_mode;
+		}
+        }
+	else{
+
+		goto check_need_to_overtick;
+
+	}
+
 
 normal_APIC_interrupt:
 
 	//still based on function pointers
-	if(stretch_flag[smp_processor_id()] == 0 || CPU_overticks[smp_processor_id()]<=0){
-		local_apic_timer_interrupt();
-	}
-//these were here before moving to the end of this execution path
-//	my_irq_exit();
-//	set_irq_regs(old_regs);
-	
-
-	//again - no additional cost (except for the predicate evaluation) in non-overtick scenarios
-	if(stretch_flag[smp_processor_id()] == 1){
-		local_irq_save(flags);
-		CPU_overticks[smp_processor_id()] = 0;
-		stretch_flag[smp_processor_id()] = 0;
-		stretch_cycles = (*original_calibration) ; 
-ENABLE 		my__setup_APIC_LVTT(stretch_cycles, 0, 1);
-   		local_irq_restore(flags);
-	}
-
+	local_apic_timer_interrupt();
 	my_irq_exit();
 	set_irq_regs(old_regs);
-
+	
 	return;
 
-overtick_APIC_interrupt:
+overtick_APIC_interrupt_user_mode:
 
-	//if(overtick_count[target] <= 0){// '<' should be redundant
-	if( CPU_overticks[smp_processor_id()] <= 0 ){// '<' should be redundant
+	if(CPU_overticks[smp_processor_id()] <= 0){// '<' should be redundant
 		CPU_overticks[smp_processor_id()] = OVERTICK_SCALING_FACTOR;
         	local_apic_timer_interrupt();
 	}
@@ -251,59 +239,100 @@ overtick_APIC_interrupt:
 		CPU_overticks[smp_processor_id()] -= 1;
 	}
 
-//these wehre her before shifting to the end of the execuion path
- //       my_irq_exit();
-  //      set_irq_regs(old_regs);
+        my_irq_exit();
+        set_irq_regs(old_regs);
 
-	if( old_regs != NULL ){//interrupted while in kernel mode running
-		goto overtick_APIC_interrupt_kernel_mode;
-	}
+	//find the interrupted thread meta-data
+	for(i = 0; i < TS_THREADS; i++){
 
-	if((regs->ip & 0xf000000000000000 || regs->ip >= 0x7f0000000000) ){//interrupted while in kernel mode running
+		if(ts_threads[i] == current->pid){
+			DEBUG
+			printk(KERN_INFO "%s: found APIC registered thread %d on CPU %d - overtick count is %d - return instruction is at address %p\n", KBUILD_MODNAME, current->pid,smp_processor_id(),overtick_count[i],regs->ip);
 
-		goto overtick_APIC_interrupt_kernel_mode;
-	}
+			target = i;
+			break;
+		}	
+	} // end for
 
-	if(callback[target] != NULL && !(regs->ip & 0xf000000000000000) ){//check 1) callback existence and 2) no kernel mode running upon APIC timer interrupt
 
+	//should neved reah this point with undefined target
+	if( callback[target] != NULL  ){//check callback existence 
 		auxiliary_stack_pointer = regs->sp;
-		auxiliary_stack_pointer -= sizeof(regs->ip);
+		auxiliary_stack_pointer--;
 		//printk("stack management information : reg->sp is %p - auxiliary sp is %p\n",regs->sp,auxiliary_stack_pointer);
-       	 	copy_to_user((void *)auxiliary_stack_pointer,(void *)&regs->ip, sizeof(regs->ip));	
-//		auxiliary_stack_pointer--;
-//       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
-//		auxiliary_stack_pointer--;
- //      	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
+       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&regs->ip,8);	
+		auxiliary_stack_pointer--;
+       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
+		auxiliary_stack_pointer--;
+       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
 		//printk("stack management information : reg->sp is %p - auxiliary sp is %p - hitted objectr is %u - pgd descriptor is %u\n",regs->sp,auxiliary_stack_pointer,hitted_object,i);
 		regs->sp = auxiliary_stack_pointer;
 		regs->ip = callback[target];
 	}
 
+	return;
+
 overtick_APIC_interrupt_kernel_mode:
 
 	local_irq_save(flags);
-	stretch_flag[smp_processor_id()] = 1;
-	stretch_cycles = (*original_calibration) / OVERTICK_SCALING_FACTOR; 
+	stretch_flag[smp_processor_id()] = 0;
+	stretch_cycles = (*original_calibration) ; 
 ENABLE 	my__setup_APIC_LVTT(stretch_cycles, 0, 1);
    	local_irq_restore(flags);
+
+	if(CPU_overticks[smp_processor_id()] <= 0){// '<' should be redundant
+        	local_apic_timer_interrupt();
+	}
 
         my_irq_exit();
         set_irq_regs(old_regs);
 
 	return;
 
+check_need_to_overtick:
 
+       	local_apic_timer_interrupt();
+        my_irq_exit();
+        set_irq_regs(old_regs);
 
-/*
-//	overtick_count[target] -= COMPENSATE;
+	//find the interrupted thread meta-data
+	for(i = 0; i < TS_THREADS; i++){
+
+		if(ts_threads[i] == current->pid){
+			DEBUG
+			printk(KERN_INFO "%s: found APIC registered thread %d on CPU %d - overtick count is %d - return instruction is at address %p\n", KBUILD_MODNAME, current->pid,smp_processor_id(),overtick_count[i],regs->ip);
+
+			target = i;
+			goto start_overtick;
+		}	
+	} // end for
+
+	return;
+
+start_overtick:
+
 	local_irq_save(flags);
 	stretch_flag[smp_processor_id()] = 1;
-//	stretch_cycles = (*original_calibration) / OVERTICK_SCALING_FACTOR; 
-//	stretch_cycles = (*original_calibration) / OVERTICK_COMPENSATION_FACTOR; 
-	stretch_cycles = (*original_calibration) ; 
+	CPU_overticks[smp_processor_id()] = OVERTICK_SCALING_FACTOR;
+	stretch_cycles = (*original_calibration) / OVERTICK_SCALING_FACTOR; 
 ENABLE 	my__setup_APIC_LVTT(stretch_cycles, 0, 1);
    	local_irq_restore(flags);
-*/
+
+	//should neved reah this point with undefined target
+	if( callback[target] != NULL  ){//check callback existence 
+		auxiliary_stack_pointer = regs->sp;
+		auxiliary_stack_pointer--;
+		//printk("stack management information : reg->sp is %p - auxiliary sp is %p\n",regs->sp,auxiliary_stack_pointer);
+       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&regs->ip,8);	
+		auxiliary_stack_pointer--;
+       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
+		auxiliary_stack_pointer--;
+       	 copy_to_user((void*)auxiliary_stack_pointer,(void*)&current->pid,8);	
+		//printk("stack management information : reg->sp is %p - auxiliary sp is %p - hitted objectr is %u - pgd descriptor is %u\n",regs->sp,auxiliary_stack_pointer,hitted_object,i);
+		regs->sp = auxiliary_stack_pointer;
+		regs->ip = callback[target];
+	}
+
 	return;
 }
 
@@ -409,6 +438,7 @@ static long time_stretch_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 			if( arg != 0x0 ){
 				local_irq_save(aux_flags);
 				stretch_flag[smp_processor_id()] = 1;
+				CPU_overticks[smp_processor_id()] = OVERTICK_SCALING_FACTOR;
 				stretch_cycles = (*original_calibration) / OVERTICK_SCALING_FACTOR; 
 ENABLE 				my__setup_APIC_LVTT(stretch_cycles, 0, 1);
 	       			local_irq_restore(aux_flags);
@@ -484,10 +514,10 @@ end_register:
 
 		mutex_unlock(&ts_thread_register);
 
-		time_cycles = *original_calibration;
 		local_irq_save(fl);
-ENABLE 		my__setup_APIC_LVTT(time_cycles,0,1);
 		stretch_flag[smp_processor_id()] = 0;
+		time_cycles = *original_calibration;
+ENABLE 		my__setup_APIC_LVTT(time_cycles,0,1);
 		local_irq_restore(fl);
 
 		break;
@@ -535,7 +565,6 @@ static void scheduler_hook(void) {
 
 			local_irq_save(flags);
 			stretch_flag[smp_processor_id()] = 1;
-			overtick_count[i] = OVERTICK_SCALING_FACTOR;
 			CPU_overticks[smp_processor_id()] = OVERTICK_SCALING_FACTOR;
 			stretch_cycles = (*original_calibration) / OVERTICK_SCALING_FACTOR; 
 ENABLE 			my__setup_APIC_LVTT(stretch_cycles, 0, 1);
@@ -593,7 +622,6 @@ ENABLE 				my__setup_APIC_LVTT(stretch_cycles, 0, 1);
 	if (stretch_flag[smp_processor_id()] == 1) {
 		DEBUG
 		printk(KERN_DEBUG "%s: found a stretch on  CPU-id %d is (thread is %d)\n", KBUILD_MODNAME, smp_processor_id(),current->pid);
-		CPU_overticks[smp_processor_id()] = 0;
 		time_cycles = *original_calibration;
 ENABLE 		my__setup_APIC_LVTT(time_cycles, 0, 1);
 		stretch_flag[smp_processor_id()] = 0;
@@ -879,7 +907,6 @@ static int time_stretch_init(void) {
 	int ret = 0;
 
 	printk(KERN_INFO "%s: mounting the module\n", KBUILD_MODNAME);
-	printk(KERN_INFO "%s:calibration is %u - scaled is %u\n", KBUILD_MODNAME, *original_calibration, *original_calibration / OVERTICK_SCALING_FACTOR);
 
 	// Initialize the device mutex
 	mutex_init(&ts_mutex);
@@ -964,7 +991,6 @@ static void time_stretch_cleanup(void) {
 	stretch_flag[smp_processor_id()] = 0;
 	time_cycles = *original_calibration;
 ENABLE 	my__setup_APIC_LVTT(time_cycles, 0, 1);
-	stretch_flag[smp_processor_id()] = 0;
 	local_irq_restore(flags);
 	printk(KERN_DEBUG "%s: core %d - realigning time cycles (tid is %d - CPU id is %d)\n", KBUILD_MODNAME, smp_processor_id(), current->pid, smp_processor_id());
 
