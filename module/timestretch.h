@@ -59,7 +59,7 @@ typedef struct _map {
 
 #define HTM_THREADS TS_THREADS // max number of concurrent threads rnning HTM transactions with timer stretch
 
-#define IOCTL_REGISTER_THREAD _IO(TSTRETCH_IOCTL_MAGIC, 0 ) 
+#define IOCTL_REGISTER_THREAD _IOW(TSTRETCH_IOCTL_MAGIC, 0, void *) 
 #define IOCTL_DEREGISTER_THREAD _IO(TSTRETCH_IOCTL_MAGIC, 1) 
 //#define IOCTL_SETUP_BUFFER _IOW(TSTRETCH_IOCTL_MAGIC, 2, unsigned long ) 
 #define IOCTL_SETUP_CALLBACK _IOW(TSTRETCH_IOCTL_MAGIC, 3, void *) 

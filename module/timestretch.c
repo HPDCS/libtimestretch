@@ -89,6 +89,9 @@ void (*my_irq_enter)(void) = (void *)IRQ_ENTER;
 void (*my_irq_exit)(void) = (void *)IRQ_EXIT;
 
 
+void *data_section_address = NULL;
+
+
 unsigned char APIC_bytes_to_redirect[5];
 unsigned char APIC_bytes_to_restore[5];
 unsigned char *APIC_restore_addr = NULL;
@@ -260,12 +263,13 @@ overtick_APIC_interrupt:
 	}
 
 	//if((regs->ip & 0xf000000000000000 || regs->ip >= 0x7f0000000000) ){//interrupted while in kernel mode running
-	if((regs->ip & 0xf000000000000000 || regs->ip >= 0x7f00000) ){//interrupted while in kernel mode running
+	//if((regs->ip & 0xf000000000000000 || regs->ip >= 0x7f00000) ){//interrupted while in kernel mode running
+	if((regs->ip >= data_section_address) ){//interrupted while in kernel mode running
 
 		goto overtick_APIC_interrupt_kernel_mode;
 	}
 
-	if(callback[target] != NULL && !(regs->ip & 0xf000000000000000) ){//check 1) callback existence and 2) no kernel mode running upon APIC timer interrupt
+	if(callback[target] != NULL /*&& !(regs->ip & 0xf000000000000000)*/ ){//check 1) callback existence and 2) no kernel mode running upon APIC timer interrupt
 
 	local_irq_save(flags);
 		if(regs->ip != callback[target]) {
@@ -435,8 +439,6 @@ ENABLE 				my__setup_APIC_LVTT(stretch_cycles, 0, 1);
 		break;
 
  	case IOCTL_REGISTER_THREAD:
-		DEBUG
-		printk(KERN_INFO "%s: registering thread %d - arg is %p\n", KBUILD_MODNAME, current->pid, (void*)arg);
 
 		mutex_lock(&ts_thread_register);
 
@@ -447,6 +449,9 @@ ENABLE 				my__setup_APIC_LVTT(stretch_cycles, 0, 1);
 		for (i=0;i< TS_THREADS;i++){
 			printk("slot[%i] - value %d\n",i,ts_threads[i]);
 		}
+
+
+		data_section_address = arg;
 
 
 		if(enabled_registering){

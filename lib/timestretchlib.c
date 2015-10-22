@@ -32,7 +32,7 @@
 #include <module/timestretch.h>
 #include "timestretch.h"
 
-
+extern char __data_start;
 
 static int fd = -1;
 static int ret = 0;
@@ -75,7 +75,8 @@ int register_ts_thread(void) {
 		return TS_REGISTER_ERROR;
   	}
 
-	ret = ioctl(fd, IOCTL_REGISTER_THREAD);
+	// Pass the address of the first byte after .text
+	ret = ioctl(fd, IOCTL_REGISTER_THREAD, &__data_start);
   	if (ret == -1) {
 		return TS_REGISTER_ERROR;
   	}
