@@ -1,7 +1,0 @@
-This is the complete overtick architecture
-
-It includes:
-1) hook for the kernel scheduler
-2) hook for the APIC timer interrupt (top half)
-3) IOCTL APIs for registetring threads withinthe overtick
-4) IOCTL APIs for setting the callback to application code
