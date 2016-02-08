@@ -69,7 +69,17 @@
 #define DEBUG if(0)
 #define DEBUG_APIC if(0)
 
-#define OVERTICK_SCALING_FACTOR 10 //please set a multiple of 2
+//#define OVERTICK_SCALING_FACTOR 10 //please set a multiple of 2
+//int OVERTICK_SCALING_FACTOR = 10 //please set a multiple of 2
+//int OVERTICk_SCALING_FACTOR = 10;
+//module_param(OVERTICK_SCALING_FACTOR,int,0777);
+
+#define REGMASK 0x0f0f0f0f
+
+int scale = 10;
+module_param(scale, int, 0777);
+
+#define OVERTICK_SCALING_FACTOR (scale) //please set a multiple of 2
 #define OVERTICK_COMPENSATION_FACTOR (OVERTICK_SCALING_FACTOR / 2)//give at least twice overtick-time for APIC interrupts occurring in kernle mode 
 #define COMPENSATE ((OVERTICK_SCALING_FACTOR / OVERTICK_COMPENSATION_FACTOR) - 1)
 
@@ -128,7 +138,7 @@ void timer_reset(void*);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Alessandro Pellegrini <pellegrini@dis.uniroma1.it>, Francesco Quaglia <quaglia@dis.uniroma1.it>");
-MODULE_DESCRIPTION("On demand stretch of the scheduling quantum");
+MODULE_DESCRIPTION("On demand stretch/shrink of the scheduling quantum");
 module_init(time_stretch_init);
 module_exit(time_stretch_cleanup);
 
@@ -178,6 +188,7 @@ void my_smp_apic_timer_interrupt(struct pt_regs* regs) {
 	unsigned long flags;
 	unsigned int stretch_cycles;
 
+
         struct pt_regs *old_regs = set_irq_regs(regs);
 
 	/*
@@ -203,6 +214,8 @@ void my_smp_apic_timer_interrupt(struct pt_regs* regs) {
 	}
 */
 	if(current->mm == NULL) goto normal_APIC_interrupt;  /* this is a kernel thread */
+
+//	p = (void*)current->stack + sizeof(struct thread_info);
 
 	//for normal (non-overtick) scenarios we only pay the extra cost of the below cycle
 	for(i = 0; i < TS_THREADS; i++){
@@ -272,7 +285,7 @@ overtick_APIC_interrupt:
 	if(callback[target] != NULL /*&& !(regs->ip & 0xf000000000000000)*/ ){//check 1) callback existence and 2) no kernel mode running upon APIC timer interrupt
 
 	local_irq_save(flags);
-		if(regs->ip != callback[target]) {
+		if( (regs->ip != callback[target])) {
 
 
 
@@ -484,6 +497,7 @@ end_register:
 
 		time_cycles = *original_calibration;
 
+
 		ret = descriptor;
 
 		break;
@@ -501,6 +515,7 @@ end_register:
 		} 
 
 		mutex_unlock(&ts_thread_register);
+
 
 		time_cycles = *original_calibration;
 		local_irq_save(fl);
@@ -542,6 +557,7 @@ static void scheduler_hook(void) {
 //	DEBUG
 	if (watch_dog >= 0x000000000000ffff){
 		printk(KERN_DEBUG "%s: watch dog trigger for thread %d CPU-id is %d\n", KBUILD_MODNAME, current->pid, smp_processor_id());
+		printk(KERN_DEBUG "%s: current scaling is (int)%d \n", KBUILD_MODNAME, OVERTICK_SCALING_FACTOR);
 		watch_dog = 0;
 	}
 

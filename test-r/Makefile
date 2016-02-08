@@ -17,7 +17,7 @@ example:
 	gcc -c test-r.c $(FLAGS)  -g
 	gcc -c callback.c $(FLAGS)  -g
 	gcc -c entry.S $(FLAGS)  -g
-	gcc -o test-r -g test-r.o callback.o entry.o $(OBJ_DIR)timestretchlib.o -lpthread
+	gcc -o test-r -g test-r.o callback.o entry.o $(OBJ_DIR)timestretchlib.o -lpthread -lm
 
 clean:
 	rm test-r 

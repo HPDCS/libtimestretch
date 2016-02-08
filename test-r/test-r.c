@@ -10,6 +10,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <overtick.h>
+#include <sys/mman.h>
+#include <math.h>
 
 #define DELAY 10000000
 
@@ -30,6 +32,8 @@ void *RegisterThread(void *arg){
 	char *p;
 	unsigned me;
 	char c[200];
+	float num = 0.1;
+	double num1 = 0.2;
 	
 	if(register_ts_thread() == TS_REGISTER_OK){ 
 		printf("Thread %u registered\n",me=pthread_self());
@@ -45,17 +49,23 @@ void *RegisterThread(void *arg){
 
 
 		for (j=0; j<200; j++){
+
 		 for (i=0; i<DELAY; i++);
+
+			
+			num1 = pow(num,num1);
 
 			printf("hello world %d times from %u\n",j,me);
 			fflush(stdout);
 
-			p = malloc(128);
+			//p = malloc(1024);
+			p = (char*)mmap(NULL,4096,MAP_ANONYMOUS,PROT_READ|PROT_WRITE,0,0);
 			if (p) {
 				sprintf(p,"hello world %d times\n",j);
 				//printf("hello world %d times\n",i);
 				//fflush(stdout);
 			}
+			num = num1/num;
 
 		}
 
