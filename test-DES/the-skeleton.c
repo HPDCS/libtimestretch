@@ -3,6 +3,8 @@
 #include <sys/time.h>
 #include <signal.h>
 #include <malloc.h>
+#include <pthread.h>
+#include <string.h>
 
 #include <timestretch.h>
 
@@ -55,6 +57,24 @@ void DeregisterThread(){
 }
 
 
+#define BUF_SIZE	2048
+char source_buff[BUF_SIZE];
+char dest_buff[BUF_SIZE];
+
+void *concurrent_thread(void *arg) {
+
+	double a=1, b=2, c=3;
+
+	RegisterThread(NULL);
+
+	while(1) {
+		c = pow(a, b);
+		memcpy(dest_buff, source_buff, BUF_SIZE);
+		c = log(c);
+	}
+
+	DeregisterThread();
+}
 
 void Schedule(msg_type msg){
 	insert(msg);	
@@ -67,6 +87,7 @@ int main(int argc, char**argv){
    msg_type current_event;
    int num_events;
    int ret;
+   pthread_t tid;
 
    if (argc<2) {
 	printf("usage: prog event-counter\n");
@@ -82,9 +103,11 @@ int main(int argc, char**argv){
           printf("Device open error.\n");
    }
 
-   RegisterThread(NULL);
+   pthread_create(&tid, NULL, concurrent_thread, NULL);
+
 
    initialize_event_list();
+   RegisterThread(NULL);
 	
    for(i=0;i<NUM_CENTERS;i++){
 	event.send_time = 0.0;
@@ -102,9 +125,9 @@ int main(int argc, char**argv){
    	next(&current_event);
 //	printf("schedule %d - event timestamp = %e\n",i,current_event.timestamp);
 	last_time = current_event.timestamp;
-	RegisterThread(NULL);
+//	RegisterThread(NULL);
 	ProcessEvent(current_event);
-	DeregisterThread();
+//	DeregisterThread();
    }
 
    DeregisterThread();

@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include "events.h"
 
@@ -43,6 +44,11 @@ int ProcessEvent(msg_type msg){
 	now = msg.timestamp;
 	target_center = msg.receiver;
 	state[target_center].current_simulation_time = now;
+
+	double a = 1, b = 2, c = 3;
+
+	c = pow(a, b);
+	c = log(c);
 
 
 
